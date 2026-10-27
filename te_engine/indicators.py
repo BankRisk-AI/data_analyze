@@ -1,0 +1,53 @@
+"""Single source of truth for the description of every indicator of the panel (used by the app and by INDICATORI.md)."""
+from __future__ import annotations
+import pandas as pd
+
+# (name, family, unit, definition, source, formula, use, caution)
+_ROWS = [
+ ("lei", "Identifier", "text", "Legal Entity Identifier of the bank (20 characters).", "all files, column LEI_Code", "as reported; old LEIs mapped to the current LEI", "Key of the panel; bank identity across years.", "LEIs change over time: the crosswalk of TR_Metadata is applied."),
+ ("bank_name", "Identifier", "text", "Name of the bank.", "TR_Metadata, sheet Bank list", "as listed", "Readable labels in tables and charts.", "Taken from the latest edition available."),
+ ("country_bank", "Identifier", "text", "ISO code of the country of the bank (NSA).", "all files, column NSA", "as reported", "Filtering and aggregation by country; selects the regulatory profile (EU or BNM).", "Not an input of the models."),
+ ("quarter", "Identifier", "period", "Reference quarter (e.g. 2020Q1 for 202003).", "column Period (YYYYMM)", "Period converted to a calendar quarter", "Time axis; label horizon and trends are computed on it.", "Editions cover only some quarters; gaps are not filled."),
+ ("year", "Identifier", "year", "Calendar year of the quarter.", "derived", "quarter.year", "Aggregation by year; time split.", ""),
+ ("edition", "Identifier", "text", "Edition (folder year_XXXX) the row comes from.", "folder name", "as loaded", "Traceability; the latest edition wins on duplicates.", ""),
+ ("finrep_reported", "Quality", "boolean", "Whether the bank reports FINREP (accounting) data.", "TR_Metadata, Bank list, column Finrep", "False if the value starts with No", "Explains structural missing values (assets, equity, profit, loans, NPL).", "13 banks are flagged in the 2020 edition."),
+ ("cet1_capital", "Capital (level)", "million EUR (assumed)", "Common Equity Tier 1 capital after deductions and transitional adjustments.", "tr_oth, item 2020102", "as reported", "Numerator of the CET1 ratio; consistency check.", "Unit not stated in the files received; verify in the guide."),
+ ("at1_capital", "Capital (level)", "million EUR (assumed)", "Additional Tier 1 capital.", "tr_oth, item 2020128", "as reported", "Consistency check: Tier 1 = CET1 + AT1.", ""),
+ ("tier1_capital", "Capital (level)", "million EUR (assumed)", "Tier 1 capital (transitional).", "tr_oth, item 2020133", "as reported", "Numerator of the Tier 1 ratio.", ""),
+ ("tier2_capital", "Capital (level)", "million EUR (assumed)", "Tier 2 capital.", "tr_oth, item 2020134", "as reported", "Total capital = Tier 1 + Tier 2.", ""),
+ ("rwa", "Capital (level)", "million EUR (assumed)", "Total risk exposure amount (risk-weighted assets).", "tr_oth, item 2020138", "as reported", "Denominator of all capital ratios; proxy of balance-sheet size and risk.", "Equals item 2021107 in the 2020 files."),
+ ("cet1_ratio", "Capital", "fraction (0.12 = 12%)", "CET1 capital / risk exposure amount, transitional definition.", "tr_oth, item 2020140", "cet1_capital / rwa (verified to 1e-10)", "Main solvency indicator: feature of the models, input of the rule benchmark (alert level 7%), basis of event E1.", "Stored as a fraction, not as a percentage."),
+ ("tier1_ratio", "Capital", "fraction", "Tier 1 capital / risk exposure amount.", "tr_oth, item 2020141", "tier1_capital / rwa", "Feature; rule benchmark (alert level 8.5%); event E1.", "Highly correlated with CET1 ratio: check VIF for logistic regression."),
+ ("total_capital_ratio", "Capital", "fraction", "Total own funds / risk exposure amount.", "tr_oth, item 2020142", "(cet1 + at1 + t2) / rwa", "Feature; rule benchmark (alert level 10.5%); event E1.", "Nested with the other two ratios."),
+ ("cet1_ratio_fully_loaded", "Capital", "fraction", "CET1 ratio without transitional arrangements.", "tr_oth, item 2020146", "as reported", "Sensitivity analysis; shows the effect of transitional rules.", "Not used as primary feature."),
+ ("leverage_ratio", "Capital", "fraction", "Tier 1 capital (transitional) / total leverage exposure.", "tr_oth, item 2020905", "as reported", "Feature that does not depend on risk weights; complements the risk-based ratios.", "Very high for some specialised banks; in 2020 no binding minimum applied in the EU."),
+ ("leverage_exposure", "Capital (level)", "million EUR (assumed)", "Total leverage ratio exposure measure.", "tr_oth, item 2020903", "as reported", "Denominator of the leverage ratio.", ""),
+ ("total_assets", "Balance sheet", "million EUR (assumed)", "Total assets (accounting).", "tr_oth, item 2021010", "as reported", "Size control; denominator checks.", "Missing for banks without FINREP."),
+ ("total_equity", "Balance sheet", "million EUR (assumed)", "Total accounting equity.", "tr_oth, item 2021216", "as reported", "Denominator of ROE.", "Item missing in the SDD: resolved by exact label."),
+ ("net_profit_ytd", "Earnings (level)", "million EUR (assumed)", "Profit or loss for the year, cumulated since the start of the bank's financial year.", "tr_oth, item 2020335", "as reported", "Numerator of ROE.", "Year-to-date: March holds one quarter, June two."),
+ ("pl_n_quarters", "Earnings (level)", "quarters", "Number of quarters included in the year-to-date profit.", "tr_oth, column n_quarters", "as reported", "Annualisation of the profit.", "Differs for banks with a non-December year end."),
+ ("roe_annualised", "Earnings", "fraction", "Return on equity, annualised.", "derived", "net_profit_ytd x (4 / pl_n_quarters) / total_equity", "Earnings component of CAMELS; feature; one of the two families expected to rank first by SHAP (H5).", "Volatile for small equity; flagged outliers kept."),
+ ("loans_gross", "Asset quality (level)", "million EUR (assumed)", "Gross carrying amount of loans and advances (amortised cost and fair value).", "tr_cre, item 2020603, all breakdown dimensions at 0, Perf_Status 0", "as reported", "Denominator of the NPL ratio; base of loan growth.", "123 of 135 banks report the NPE template."),
+ ("npl_gross", "Asset quality (level)", "million EUR (assumed)", "Gross carrying amount of non-performing loans and advances.", "tr_cre, item 2020603, Perf_Status 2", "as reported", "Numerator of the NPL ratio.", ""),
+ ("npe_stage3", "Asset quality (level)", "million EUR (assumed)", "Stage 3 loans as reported in the NPE template.", "tr_cre, item 2020603, Perf_Status 23", "as reported", "Cross-check with the Assets template.", "Differs from tr_oth for 9 of 122 bank-quarters in 2020."),
+ ("npl_ratio", "Asset quality", "fraction", "Non-performing loans / total loans.", "derived", "npl_gross / loans_gross", "Asset-quality feature; basis of event E3.", "Up to 47% for Greek banks in 2020; heavy right tail."),
+ ("stage2_share", "Asset quality", "fraction", "Share of IFRS 9 Stage 2 loans in loans at amortised cost.", "tr_oth, item 2021019, dimension ASSETS_Stages", "S2 / (S1 + S2 + S3)", "Early signal of deterioration before loans become non-performing.", "Only for banks reporting FINREP."),
+ ("stage3_assets", "Asset quality (level)", "million EUR (assumed)", "Stage 3 loans as reported in the Assets template.", "tr_oth, item 2021019, ASSETS_Stages 3", "as reported", "Cross-check with npe_stage3.", ""),
+ ("nace_hhi", "Concentration", "index 0-1", "Herfindahl-Hirschman index of loans to non-financial corporations across NACE sectors.", "tr_cre, item 2021301, NACE_codes 1-19, Perf_Status 0", "sum over sectors of (share of sector)^2", "Proxy of sectoral concentration (the exposure per client is not public).", "1 means a single sector; undefined without loans."),
+ ("sovereign_hhi", "Concentration", "index 0-1", "Herfindahl-Hirschman index of sovereign exposures across issuer countries.", "tr_sov", "sum over countries of (share)^2", "Proxy of sovereign concentration.", "Not computed yet: tr_sov not provided."),
+ ("npl_delta_qoq", "Trend", "fraction", "Change of the NPL ratio versus the previous quarter.", "derived", "npl_ratio(t) - npl_ratio(t-1)", "Trend feature tested in H3.", "Empty unless the previous quarter exists."),
+ ("loan_growth_qoq", "Trend", "fraction", "Quarterly growth of gross loans.", "derived", "loans(t) / loans(t-1) - 1", "Trend feature tested in H3 (credit growth).", "Empty unless the previous quarter exists."),
+ ("loan_growth_yoy", "Trend", "fraction", "Annual growth of gross loans.", "derived", "loans(t) / loans(t-4) - 1", "Trend feature tested in H3.", "Needs editions covering four quarters earlier."),
+ ("cet1_delta_qoq", "Trend", "fraction", "Change of the CET1 ratio versus the previous quarter.", "derived", "cet1_ratio(t) - cet1_ratio(t-1)", "Capital trend; basis of event E2.", ""),
+ ("cet1_headroom", "Distance to alert level", "fraction", "Distance of the CET1 ratio from the E1 alert level.", "derived", "cet1_ratio - 0.07", "Shows how far a bank is from event E1; used to tune the margin m of benchmark R1.", "Alert levels are uniform, not bank-specific."),
+ ("tier1_headroom", "Distance to alert level", "fraction", "Distance of the Tier 1 ratio from its alert level.", "derived", "tier1_ratio - 0.085", "Same use as above.", ""),
+ ("total_capital_headroom", "Distance to alert level", "fraction", "Distance of the total capital ratio from its alert level.", "derived", "total_capital_ratio - 0.105", "Same use as above.", ""),
+ ("min_headroom", "Distance to alert level", "fraction", "Smallest of the three headrooms.", "derived", "min(cet1, tier1, total headroom)", "Single measure of proximity to a breach; negative means a breach.", ""),
+ ("lcr", "Liquidity", "fraction", "Liquidity coverage ratio.", "tr_oth key metrics (later editions)", "as reported", "Liquidity component of CAMELS.", "Not present in the 2020 edition."),
+ ("compliant_at_t", "Label", "boolean", "All three capital ratios are at or above their alert levels at t.", "derived", "ratios >= alert levels", "Defines the prediction sample (new breaches only).", ""),
+ ("y_e1", "Label", "0/1/missing", "1 if a breach of an alert level occurs in the next 4 quarters; 0 if the whole horizon is observed without breach; missing otherwise.", "derived", "see labels.py", "Target of the supervised models and of the rule benchmark comparison.", "Missing when the horizon is not fully observed."),
+]
+COLUMNS = ["indicator", "family", "unit", "definition", "source", "formula", "use", "caution"]
+
+def indicators_df() -> pd.DataFrame:
+    return pd.DataFrame(_ROWS, columns=COLUMNS)

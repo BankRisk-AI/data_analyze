@@ -1,0 +1,17 @@
+{
+  "bank_quarters": 266,
+  "banks": 135,
+  "quarters": [
+    "2020Q1",
+    "2020Q2"
+  ],
+  "observed_breaches_any_quarter": 0,
+  "eligible_compliant_at_t": 266,
+  "labelled_rows": 0,
+  "positive_rows": 0,
+  "banks_with_event": 0,
+  "min_headroom_cet1_pp": 3.7285934899999997,
+  "min_headroom_tier1_pp": 2.61584109,
+  "min_headroom_total_pp": 2.221909200000001,
+  "go_e1": false
+}
