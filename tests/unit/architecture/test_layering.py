@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-APP = Path(__file__).resolve().parents[2] / "app"
+APP = Path(__file__).resolve().parents[3] / "app"
 MODULES = sorted(p.name for p in (APP / "modules").iterdir() if p.is_dir() and not p.name.startswith("_"))
 LAYERS = ("domain", "application", "infrastructure", "presentation")
 # what each layer may import from its own module (module.py and __main__.py compose the module: no rule)

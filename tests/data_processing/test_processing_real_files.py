@@ -15,7 +15,10 @@ from app.modules.eba_processing.domain import Filters
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 REAL = os.path.join(os.environ.get("EBA_REAL_DIR") or str(PROJECT_ROOT / "eba_prepared"), "2020A")
 FILES = ["tr_oth.csv", "tr_cre.csv", "tr_mrk.csv"]
-pytestmark = pytest.mark.skipif(not os.path.isdir(REAL), reason="EBA_REAL_DIR prepared layout not found")
+pytestmark = [
+    pytest.mark.data_processing,
+    pytest.mark.skipif(not os.path.isdir(REAL), reason="EBA_REAL_DIR prepared layout not found"),
+]
 
 
 @pytest.mark.slow

@@ -10,7 +10,10 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 REAL = Path(os.getenv("EBA_REAL_DIR") or str(PROJECT_ROOT / "eba_prepared")) / "2020A"
 
 FILES = ["tr_oth.csv", "tr_cre.csv", "tr_mrk.csv", "SDD.xlsx", "TR_Metadata.xlsx"]
-pytestmark = pytest.mark.skipif(not REAL.is_dir(), reason="EBA_REAL_DIR prepared layout not found")
+pytestmark = [
+    pytest.mark.data_processing,
+    pytest.mark.skipif(not REAL.is_dir(), reason="EBA_REAL_DIR prepared layout not found"),
+]
 
 
 def test_original_2020_files_exist():
