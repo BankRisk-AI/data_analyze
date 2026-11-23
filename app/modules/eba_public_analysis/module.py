@@ -1,5 +1,5 @@
 from app.core.module import ModuleSpec
-from app.modules.eba_public_analysis.presentation.api.router import TAG, build_router
+from app.modules.eba_public_analysis.presentation.router import TAG, build_router
 
 SPEC = ModuleSpec(
     name="eba_public_analysis",

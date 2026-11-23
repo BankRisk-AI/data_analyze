@@ -1,7 +1,7 @@
 import pytest
 
 from app.core.exceptions import BadRequestError, NotFoundError
-from app.modules.eba_public_analysis.application import analysis
+from app.modules.eba_public_analysis.application import alerts as analysis
 
 
 class Cursor:
