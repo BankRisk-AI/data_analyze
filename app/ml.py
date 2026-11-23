@@ -1,4 +1,3 @@
-"""Explicit re-exports from the eba_ml pipeline for backward compatibility."""
 from app.modules.eba_ml.application.dataset import build_dataset, folds, save_dataset
 from app.modules.eba_ml.application.models import model_factory
 from app.modules.eba_ml.application.pipeline import fit_final_model, hypotheses, train
