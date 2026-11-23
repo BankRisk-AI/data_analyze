@@ -224,7 +224,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if a.cmd == "ml":
         if a.ml_cmd == "hypotheses":
-            from app.modules.eba_ml.application.ml_pipeline import hypotheses
+            from app.modules.eba_ml.application.pipeline import hypotheses
             Path("logs").mkdir(parents=True, exist_ok=True)
             run = Path(a.run_option or a.run)
             report = hypotheses(run, quick=a.quick)
@@ -241,7 +241,7 @@ def main(argv: list[str] | None = None) -> int:
         target, _ = select_target("prod")
         from app.core.config import get_schema
         from app.core.database import connect
-        from app.ml import train as train_models
+        from app.modules.eba_ml.application.pipeline import train as train_models
         conn = connect(get_schema())
         try:
             models = [value.strip() for value in a.models.split(",") if value.strip()]

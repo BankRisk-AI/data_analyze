@@ -9,7 +9,8 @@ import numpy as np
 
 from app.core.database import connect
 from app.core.config import get_schema
-from app.modules.eba_ml.application.ml_pipeline import build_dataset, folds, model_factory
+from app.modules.eba_ml.application.dataset import build_dataset, folds
+from app.modules.eba_ml.application.models import model_factory
 from app.modules.eba_ml.infrastructure.artifacts import ArtifactStore
 
 

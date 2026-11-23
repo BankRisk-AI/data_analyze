@@ -1,7 +1,6 @@
 """Deterministic Stage 5b dataset and model evaluation pipeline."""
 from __future__ import annotations
 
-import hashlib
 import json
 import logging
 import random
@@ -13,132 +12,21 @@ from typing import Any
 import numpy as np
 import yaml
 
-FEATURES = (
-    "cet1_ratio", "tier1_ratio", "total_capital_ratio", "leverage_ratio",
-    "npl_ratio", "stage2_share", "roe_annualised", "nace_hhi",
-    "sovereign_hhi", "loan_growth_qoq", "loan_growth_yoy",
+from app.modules.eba_ml.domain.constants import FEATURES, TARGETS
+from app.modules.eba_ml.application.dataset import (
+    _months, _approved_ids, build_dataset, save_dataset, folds,
 )
-TARGETS = ("T1", "T2", "T3", "T4", "T5", "T5_noT1")
-SEED = 20261121
+from app.modules.eba_ml.application.models import (
+    model_factory, _search_configs, SEED, SEARCH_CONFIGURATIONS,
+)
+from app.modules.eba_ml.domain.metrics import (
+    _classification_metrics, _cluster_bootstrap, _hyp_bootstrap, _hyp_wilcoxon,
+    holm_adjust, equal_alert_volume_recall, lead_time_quarters,
+)
 
-
-SEARCH_CONFIGURATIONS = 60
-
-
-def model_factory(algorithm=None, params=None, pos_weight=None, space="extended"):
-    from sklearn.ensemble import RandomForestClassifier
-    from sklearn.impute import SimpleImputer
-    from sklearn.linear_model import LogisticRegression
-    from sklearn.pipeline import Pipeline
-    from sklearn.preprocessing import StandardScaler
-    from xgboost import XGBClassifier
-    params = params or {}
-    if space == "table35":
-        models = {
-            "LR": Pipeline([("imputer", SimpleImputer(strategy="median", add_indicator=True)),
-                            ("scale", StandardScaler()),
-                            ("model", LogisticRegression(max_iter=2000,
-                             class_weight="balanced", solver=params.get("solver", "liblinear"),
-                             penalty=params.get("penalty", "l2"), C=params.get("C", 1.0)))]),
-            "RF": RandomForestClassifier(n_estimators=params.get("n_estimators", 150),
-                                         class_weight="balanced", random_state=SEED, n_jobs=1,
-                                         max_depth=params.get("max_depth"),
-                                         min_samples_leaf=params.get("min_samples_leaf", 1),
-                                         max_features=params.get("max_features", "sqrt"),
-                                         oob_score=True, bootstrap=True),
-            "XGB": XGBClassifier(n_estimators=params.get("n_estimators", 100),
-                                 max_depth=params.get("max_depth", 3),
-                                 learning_rate=params.get("learning_rate", .1),
-                                 subsample=params.get("subsample", 1.0),
-                                 colsample_bytree=params.get("colsample_bytree", 1.0),
-                                 reg_lambda=params.get("reg_lambda", 1.0),
-                                 scale_pos_weight=pos_weight or 1.0,
-                                 random_state=SEED, n_jobs=1, verbosity=0),
-        }
-    else:
-        models = {
-        "LR": Pipeline([("imputer", SimpleImputer(strategy="median", add_indicator=True)),
-                        ("scale", StandardScaler()),
-                        ("model", LogisticRegression(max_iter=2000,
-                         class_weight="balanced", solver=params.get("solver", "liblinear"),
-                         penalty=params.get("penalty", "l2"), C=params.get("C", 1.0)))]),
-        "RF": RandomForestClassifier(n_estimators=params.get("n_estimators", 150), class_weight="balanced",
-                                     random_state=SEED, n_jobs=1,
-                                     max_depth=params.get("max_depth"),
-                                     min_samples_leaf=params.get("min_samples_leaf", 1),
-                                     max_features=params.get("max_features", "sqrt"),
-                                     oob_score=True, bootstrap=True),
-        "XGB": XGBClassifier(n_estimators=params.get("n_estimators", 100),
-                             max_depth=params.get("max_depth", 3),
-                             learning_rate=params.get("learning_rate", .05),
-                             min_child_weight=params.get("min_child_weight", 1),
-                             subsample=params.get("subsample", .8),
-                             colsample_bytree=params.get("colsample_bytree", .8),
-                             eval_metric="logloss", scale_pos_weight=pos_weight or 1.0,
-                             random_state=SEED, n_jobs=1, verbosity=0),
-        }
-    return models if algorithm is None else models[algorithm]
-
-
-def _search_configs(name: str, space: str = "extended") -> list[dict[str, Any]]:
-    if space not in {"table35", "extended"}:
-        raise ValueError(f"unknown search space: {space}")
-    rng = random.Random(SEED + sum(ord(char) for char in name))
-    if space == "table35" and name == "LR":
-        return [{"penalty": penalty, "solver": "liblinear", "C": c}
-                for penalty in ("l1", "l2") for c in (0.01, 0.1, 1, 10, 100)]
-    if space == "table35" and name == "RF":
-        values = {"max_depth": [None, 5, 10, 15, 20],
-                  "min_samples_leaf": [1, 2, 5, 10],
-                  "max_features": ["sqrt", "log2", 0.5]}
-    elif space == "table35":
-        values = {"n_estimators": [100, 300, 500],
-                  "max_depth": [3, 4, 5, 6, 8],
-                  "learning_rate": [.01, .05, .1, .2],
-                  "subsample": [.7, .8, .9, 1.0],
-                  "colsample_bytree": [.7, .8, .9, 1.0],
-                  "reg_lambda": [.1, 1, 5, 10]}
-    elif name == "LR":
-        values = {"penalty": ["l1", "l2"], "solver": ["liblinear"],
-                  "C": [0.01, 0.03, 0.1, 0.3, 1, 3, 10, 30, 100]}
-    elif name == "RF":
-        values = {"max_depth": [None, 3, 5, 8, 12, 20],
-                  "min_samples_leaf": [1, 2, 4, 8, 12],
-                  "max_features": ["sqrt", "log2", 0.5, 1.0]}
-    else:
-        values = {"n_estimators": [100], "max_depth": [2, 3, 4, 5],
-                  "learning_rate": [.02, .05, .1, .2],
-                  "min_child_weight": [1, 3, 6], "subsample": [.7, .85, 1.0],
-                  "colsample_bytree": [.7, .85, 1.0]}
-    configs = []
-    for _ in range(SEARCH_CONFIGURATIONS):
-        configs.append({key: rng.choice(options) for key, options in values.items()})
-    return configs
-
-
-def _classification_metrics(actual, scores):
-    from sklearn.metrics import average_precision_score, roc_auc_score
-    actual = np.asarray(actual, dtype=int)
-    scores = np.asarray(scores, dtype=float)
-    return {"hit_rate": float(((scores >= .5) & (actual == 1)).sum() / max(1, actual.sum())),
-            "false_alarm_rate": float(((scores >= .5) & (actual == 0)).sum() /
-                                      max(1, (actual == 0).sum())),
-            "pr_auc": float(average_precision_score(actual, scores)),
-            "roc_auc": float(roc_auc_score(actual, scores)) if len(set(actual)) > 1 else None}
-
-
-def _cluster_bootstrap(actual, candidate, reference, banks, seed=SEED, n=2000):
-    from sklearn.metrics import average_precision_score
-    rng = np.random.default_rng(seed)
-    groups, inverse = np.unique(np.asarray(banks), return_inverse=True)
-    # Build these once: the bootstrap loop must not repeatedly scan the panel.
-    group_indices = tuple(np.flatnonzero(inverse == i) for i in range(len(groups)))
-    values = np.empty(n, dtype=float)
-    for draw, chosen in enumerate(rng.integers(0, len(groups), size=(n, len(groups)))):
-        indices = np.concatenate(tuple(group_indices[i] for i in chosen))
-        values[draw] = (average_precision_score(actual[indices], candidate[indices]) -
-                         average_precision_score(actual[indices], reference[indices]))
-    return [float(np.quantile(values, .025)), float(np.quantile(values, .975))]
+# SHA-256 of the eu_eba v1.1 alert profile used as comparator in train() and hypotheses().
+# Update this constant when the reference profile is regenerated in eba_public_analysis.
+EU_EBA_V1_1_PROFILE_SHA = "28a28fa0f89da8435abdb0d6042a69cb2bff421c456926374dd202e0089f7e40"
 
 
 def fit_final_model(conn, algorithm: str, target: str = "T5",
@@ -153,218 +41,13 @@ def fit_final_model(conn, algorithm: str, target: str = "T5",
     return model, dataset, y, train_idx
 
 
-def holm_adjust(pvalues: list[float]) -> list[float]:
-    """Return Holm step-down adjusted p-values in the original order."""
-    indexed = sorted(enumerate(pvalues), key=lambda item: item[1])
-    adjusted = [0.0] * len(pvalues)
-    running = 0.0
-    for rank, (index, value) in enumerate(indexed):
-        running = max(running, min(1.0, (len(pvalues) - rank) * value))
-        adjusted[index] = running
-    return adjusted
-
-
-def equal_alert_volume_recall(periods, labels, scores, benchmark):
-    """Recall when each period receives exactly the benchmark's alert volume."""
-    periods = np.asarray(periods)
-    labels = np.asarray(labels, dtype=int)
-    scores = np.asarray(scores, dtype=float)
-    benchmark = np.asarray(benchmark, dtype=bool)
-    selected = np.zeros(len(labels), dtype=bool)
-    for period in np.unique(periods):
-        indices = np.flatnonzero(periods == period)
-        count = int(benchmark[indices].sum())
-        if count:
-            order = indices[np.argsort(-scores[indices], kind="stable")[:count]]
-            selected[order] = True
-    positives = labels == 1
-    return float((selected & positives).sum() / positives.sum()) if positives.any() else 0.0
-
-
-def lead_time_quarters(event_date, observations, ml_alerts, rule_alerts):
-    """Compute t_rule - t_ml in quarters, including first-observation censoring."""
-    before = sorted((p for p in observations if p < event_date))
-    if not before:
-        return None
-
-    def first_run(alerts):
-        eligible = [p for p in before if p in alerts]
-        if not eligible:
-            return None, False
-        start = eligible[0]
-        first = before[0]
-        return start, start == first
-
-    ml_start, ml_censored = first_run(set(ml_alerts))
-    rule_start, rule_censored = first_run(set(rule_alerts))
-    if ml_start is None or rule_start is None:
-        return {"lead_quarters": None, "censored": ml_censored or rule_censored}
-    return {"lead_quarters": (rule_start.year * 4 + (rule_start.month - 1) // 3) -
-            (ml_start.year * 4 + (ml_start.month - 1) // 3),
-            "censored": ml_censored or rule_censored}
-
-
-def _months(date_value: date, count: int) -> date:
-    absolute = date_value.year * 12 + date_value.month - 1 + count
-    year, month = divmod(absolute, 12)
-    return date(year, month + 1, date_value.day)
-
-
-def _approved_ids(conn) -> dict[str, set[int]]:
-    with conn.cursor() as cur:
-        cur.execute("SELECT bank_id,trim(lei) FROM bank")
-        bank_ids = {lei: bank_id for bank_id, lei in cur.fetchall()}
-    config = yaml.safe_load(Path("config/bank_crosswalk.yaml").read_text()) or {}
-    result: dict[str, set[int]] = {}
-    for group in config.get("crosswalks", []):
-        if group.get("status") != "approved":
-            continue
-        ids = {bank_ids[m["lei"]] for m in group.get("members", []) if m["lei"] in bank_ids}
-        for member in group.get("members", []):
-            result[member["lei"]] = ids
-    return result
-
-
-def _event_ids(conn) -> dict[str, set[int]]:
-    with conn.cursor() as cur:
-        cur.execute("SELECT bank_id,trim(lei) FROM bank")
-        bank_ids = {lei: bank_id for bank_id, lei in cur.fetchall()}
-    result = {lei: {bank_id} for lei, bank_id in bank_ids.items()}
-    result.update(_approved_ids(conn))
-    return result
-
-
-def _target_rows(rows: list[dict[str, Any]], conn, event_start_months: int = 3) -> dict[str, set[tuple[int, date]]]:
-    catalogue = yaml.safe_load(Path("config/events.yaml").read_text()) or {}
-    events = [e for e in catalogue.get("events", [])
-              if e.get("set") == "primary" and e.get("status") == "included"]
-    event_ids = _event_ids(conn)
-    by_bank: dict[int, list[dict[str, Any]]] = {}
-    for row in rows:
-        by_bank.setdefault(row["bank_id"], []).append(row)
-    result = {target: set() for target in TARGETS}
-    for bank_id, bank_rows in by_bank.items():
-        bank_rows.sort(key=lambda row: row["period"])
-        for row in bank_rows:
-            period = row["period"]
-            future = [x for x in bank_rows if period < x["period"] <= _months(period, 12)]
-            event = any(
-                bank_id in event_ids.get(e["bank_lei"].strip(), set())
-                and _months(period, event_start_months) <= date.fromisoformat(e["event_date"]) <= _months(period, 12)
-                for e in events
-            )
-            cet1 = row["cet1_ratio"]
-            t2 = cet1 is not None and cet1 >= 0.11 and any(
-                x["cet1_ratio"] is not None and x["cet1_ratio"] < 0.11 for x in future)
-            t3 = cet1 is not None and any(
-                x["cet1_ratio"] is not None and cet1 - x["cet1_ratio"] >= 0.03 for x in future)
-            t4 = any(x["roe_annualised"] is not None and x["npl_ratio"] is not None
-                     and x["roe_annualised"] < 0 and x["npl_ratio"] > 0.08 for x in future)
-            t4 = t4 and not (row["roe_annualised"] is not None and row["npl_ratio"] is not None
-                             and row["roe_annualised"] < 0 and row["npl_ratio"] > 0.08)
-            values = {"T1": event, "T2": t2, "T3": t3, "T4": t4,
-                      "T5": event or t2 or t3 or t4, "T5_noT1": t2 or t3 or t4}
-            for target, positive in values.items():
-                if positive:
-                    result[target].add((bank_id, period))
-    return result
-
-
-def build_dataset(conn, grid: str = "semiannual", robustness: bool = False) -> dict[str, Any]:
-    if grid not in {"semiannual", "quarterly"}:
-        raise ValueError("grid must be semiannual or quarterly")
-    with conn.cursor() as cur:
-        cur.execute("""SELECT p.bank_id,v.period_end,p.flags,
-                              p.cet1_ratio,p.tier1_ratio,p.total_capital_ratio,p.leverage_ratio,
-                              p.npl_ratio,p.stage2_share,p.roe_annualised,p.nace_hhi,
-                              p.sovereign_hhi,p.loan_growth_qoq,p.loan_growth_yoy
-                       FROM panel_row p JOIN dataset_version v USING(version_id)
-                       WHERE v.is_active ORDER BY v.period_end,p.bank_id""")
-        raw = cur.fetchall()
-    rows = []
-    for values in raw:
-        bank_id, period, flags, *feature_values = values
-        if any("specialist_institution" in value for value in (flags or {}).values()):
-            continue
-        if grid == "semiannual" and period.month not in (6, 12):
-            continue
-        rows.append({"bank_id": bank_id, "period": period, **dict(zip(FEATURES, feature_values))})
-    by_period: dict[date, list[dict[str, Any]]] = {}
-    by_bank: dict[int, list[dict[str, Any]]] = {}
-    for row in rows:
-        by_period.setdefault(row["period"], []).append(row)
-        by_bank.setdefault(row["bank_id"], []).append(row)
-    active_features = tuple(feature for feature in FEATURES
-                            if not (robustness and feature == "loan_growth_qoq"))
-    structural = {"stage2_share", "nace_hhi", "leverage_ratio", "loan_growth_qoq",
-                  "cet1_ratio", "tier1_ratio", "total_capital_ratio"}
-    columns = []
-    for feature in active_features:
-        columns += [feature, f"{feature}_rank", f"{feature}_change12m"]
-        if not (robustness and feature in structural):
-            columns.append(f"{feature}_missing")
-    matrix = []
-    for row in rows:
-        values = []
-        peers = [x[feature] for x in by_period[row["period"]] if x[feature] is not None]
-        for feature in active_features:
-            value = row[feature]
-            values.append(value)
-            values.append(sum(x <= value for x in peers) / len(peers) if value is not None and peers else np.nan)
-            previous = next((x[feature] for x in by_bank[row["bank_id"]]
-                             if x["period"] == _months(row["period"], -12)), None)
-            values.append(value - previous if value is not None and previous is not None else np.nan)
-            if not (robustness and feature in structural):
-                values.append(0.0 if value is not None else 1.0)
-        matrix.append(values)
-    targets = _target_rows(rows, conn, 3)
-    old_targets = _target_rows(rows, conn, 0)
-    panel_hash = hashlib.sha256(json.dumps(
-        [(r["bank_id"], r["period"].isoformat(), [r[f] for f in FEATURES]) for r in rows],
-        default=str, sort_keys=True).encode()).hexdigest()
-    return {"rows": rows, "X": np.asarray(matrix, dtype=float), "columns": columns,
-            "targets": targets, "panel_hash": panel_hash, "grid": grid,
-            "robustness": robustness,
-            "target_counts_before": {name: len(values) for name, values in old_targets.items()},
-            "target_counts_after": {name: len(values) for name, values in targets.items()}}
-
-
-def save_dataset(dataset: dict[str, Any], out_dir: str | Path = "data/ml") -> Path:
-    out = Path(out_dir)
-    out.mkdir(parents=True, exist_ok=True)
-    np.savez_compressed(out / f"dataset_{dataset['grid']}.npz", X=dataset["X"],
-                        **{target: np.asarray([(r["bank_id"], r["period"]) in values
-                                               for r in dataset["rows"]])
-                           for target, values in dataset["targets"].items()})
-    manifest = {"grid": dataset["grid"], "panel_hash": dataset["panel_hash"],
-                "rows": len(dataset["rows"]), "columns": dataset["columns"],
-                "targets": {k: len(v) for k, v in dataset["targets"].items()}}
-    (out / f"manifest_{dataset['grid']}.json").write_text(json.dumps(manifest, indent=2, sort_keys=True))
-    return out
-
-
-def folds(rows: list[dict[str, Any]]) -> list[tuple[np.ndarray, np.ndarray]]:
-    result = []
-    for test_year in (2017, 2018, 2019, 2020, 2021):
-        train = np.asarray([i for i, row in enumerate(rows) if 2014 <= row["period"].year <= test_year - 2])
-        test = np.asarray([i for i, row in enumerate(rows) if row["period"].year == test_year])
-        result.append((train, test))
-    return result
-
-
 def train(conn, target: str = "T5", grid: str = "semiannual",
           out_dir: str | Path = "data/ml", robustness: bool = False,
           models: list[str] | None = None, wall_clock_hours: float = 2.0,
           space: str = "table35") -> dict[str, Any]:
     if target not in TARGETS:
         raise ValueError(f"unknown target: {target}")
-    from sklearn.ensemble import RandomForestClassifier
-    from sklearn.impute import SimpleImputer
-    from sklearn.linear_model import LogisticRegression
     from sklearn.metrics import average_precision_score, roc_auc_score, brier_score_loss, log_loss
-    from sklearn.pipeline import Pipeline
-    from sklearn.preprocessing import StandardScaler
-    from xgboost import XGBClassifier
 
     random.seed(SEED)
     np.random.seed(SEED)
@@ -504,7 +187,7 @@ def train(conn, target: str = "T5", grid: str = "semiannual",
         cur.execute("""SELECT a.bank_id,v.period_end,a.level,a.rule_results
                        FROM alert a JOIN dataset_version v USING(version_id)
                        WHERE a.profile_sha256=%s""",
-                    ("28a28fa0f89da8435abdb0d6042a69cb2bff421c456926374dd202e0089f7e40",))
+                    (EU_EBA_V1_1_PROFILE_SHA,))
         alert_rows = {(bank, period): (level, payload) for bank, period, level, payload in cur.fetchall()}
     for row in dataset["rows"]:
         key = (row["bank_id"], row["period"])
@@ -669,32 +352,6 @@ def train(conn, target: str = "T5", grid: str = "semiannual",
     return result
 
 
-def _hyp_bootstrap(y, candidate, reference, banks, metric, seed=SEED, n=2000):
-    from sklearn.metrics import average_precision_score, roc_auc_score
-    _, inverse = np.unique(banks, return_inverse=True)
-    groups = tuple(np.flatnonzero(inverse == i) for i in range(inverse.max() + 1))
-    rng = np.random.default_rng(seed)
-    values = np.empty(n)
-    fn = average_precision_score if metric == "pr" else roc_auc_score
-    for draw in range(n):
-        chosen = rng.integers(0, len(groups), len(groups))
-        idx = np.concatenate(tuple(groups[i] for i in chosen))
-        values[draw] = fn(y[idx], candidate[idx]) - fn(y[idx], reference[idx])
-    return {"estimate": float(fn(y, candidate) - fn(y, reference)),
-            "ci95": [float(np.quantile(values, .025)), float(np.quantile(values, .975))],
-            "p_one_sided": float((np.count_nonzero(values <= 0) + 1) / (n + 1))}
-
-
-def _hyp_wilcoxon(values):
-    values = np.asarray(values, dtype=float)
-    values = values[values != 0]
-    if len(values) < 5:
-        return {"p": None, "n": int(len(values)), "status": "exploratory"}
-    from scipy.stats import wilcoxon
-    return {"p": float(wilcoxon(values, alternative="greater", method="exact").pvalue),
-            "n": int(len(values)), "status": "exact"}
-
-
 def hypotheses(run_dir: str | Path, seed: int = SEED, quick: bool = False) -> dict[str, Any]:
     from sklearn.metrics import average_precision_score
     logger = logging.getLogger("eba.ml_redo")
@@ -712,6 +369,8 @@ def hypotheses(run_dir: str | Path, seed: int = SEED, quick: bool = False) -> di
     from app.core.database import connect
     conn = connect(get_schema())
     replicates = 20 if quick else 2000
+    h3_budget = 2 if quick else SEARCH_CONFIGURATIONS
+    loeo_limit = 1 if quick else None
     try:
         dataset = build_dataset(conn, artifact.get("grid", "semiannual"), True)
         rows = dataset["rows"]
@@ -753,7 +412,7 @@ def hypotheses(run_dir: str | Path, seed: int = SEED, quick: bool = False) -> di
             cur.execute("""SELECT a.bank_id,v.period_end,a.rule_results
                            FROM alert a JOIN dataset_version v USING(version_id)
                            WHERE a.profile_sha256=%s""",
-                        ("28a28fa0f89da8435abdb0d6042a69cb2bff421c456926374dd202e0089f7e40",))
+                        (EU_EBA_V1_1_PROFILE_SHA,))
             alert = {(b, p): payload or {} for b, p, payload in cur.fetchall()}
         rule = np.asarray([sum(float(v.get("score", 0))
                                for v in alert.get((r["bank_id"], r["period"]), {})
@@ -763,57 +422,153 @@ def hypotheses(run_dir: str | Path, seed: int = SEED, quick: bool = False) -> di
         period = np.asarray([r["period"].isoformat() for r in rows])
         selected_alert = np.zeros(len(y), bool)
         rule_alert = rule > 0
-        for p in np.unique(period):
+        for p in np.unique(period[mask]):  # OOF periods only — pre-OOF NaN scores cause argsort artefacts
             idx = np.flatnonzero(period == p)
             count = int(rule_alert[idx].sum())
             if count:
-                selected_alert[idx[np.argsort(-selected_scores[idx], kind="stable")[-count:]]] = True
-        h1b = {"selected_model": selected, "ml_recall": float((selected_alert & (y == 1)).sum() / max(1, y.sum())),
-               "v1_1_recall": float((rule_alert & (y == 1)).sum() / max(1, y.sum()))}
+                selected_alert[idx[np.argsort(-selected_scores[idx], kind="stable")[:count]]] = True
+        oof_pos = max(1, y[mask].sum())
+        h1b = {"selected_model": selected,
+               "ml_recall": float((selected_alert[mask] & (y[mask] == 1)).sum() / oof_pos),
+               "v1_1_recall": float((rule_alert[mask] & (y[mask] == 1)).sum() / oof_pos)}
         logger.info("hypotheses run=%s phase=h2", run_dir)
-        h2_events = []
+        approved = _approved_ids(conn)
+        space = artifact.get("space", "table35")
+        params_selected = max(search[selected], key=lambda x: x["mean_pr_auc"])["parameters"]
         probs = selected_scores[mask]
         red_share = float(np.mean(rule[mask] > 0))
-        thresholds = {"matched_far": float(np.quantile(probs, max(0, 1 - red_share))),
-                      "max_ur_0_9": float(np.quantile(probs, .9))}
+        global_thresholds = {
+            "matched_far": float(np.quantile(probs, max(0, 1 - red_share))),
+            "max_ur_0_9": float(np.quantile(probs, .9)),
+        }
         catalogue = yaml.safe_load(Path("config/events.yaml").read_text()) or {}
-        for event in catalogue.get("events", []):
-            if event.get("set") != "primary" or event.get("status") != "included":
-                continue
+        primary_events = [e for e in catalogue.get("events", [])
+                          if e.get("set") == "primary" and e.get("status") == "included"]
+        h2_events = []
+        loeo_done = 0
+        for event in primary_events:
             bank = event.get("bank_id")
+            lei = (event.get("bank_lei") or "").strip()
+            event_id = event.get("event_id")
             edate = date.fromisoformat(event["event_date"])
-            obs = [(rows[i]["period"], selected_scores[i]) for i in np.flatnonzero(mask)
-                   if rows[i]["bank_id"] == bank and _months(edate, -12) <= rows[i]["period"] <= _months(edate, -3)]
+            win_start = _months(edate, -12)
+            win_end = _months(edate, -3)
+            all_window_idx = [i for i, r in enumerate(rows)
+                              if r["bank_id"] == bank
+                              and win_start <= r["period"] <= win_end]
+            oof_window_idx = [i for i in np.flatnonzero(mask)
+                              if rows[i]["bank_id"] == bank
+                              and win_start <= rows[i]["period"] <= win_end]
+            if oof_window_idx:
+                obs = [(rows[i]["period"], float(selected_scores[i])) for i in oof_window_idx]
+                thresholds_used = global_thresholds
+                is_loeo = False
+                is_oot = True
+            else:
+                if loeo_limit is not None and loeo_done >= loeo_limit:
+                    h2_events.append({"event": event_id, "status": "no_ml_prediction",
+                                      "out_of_time": False, "loeo": False,
+                                      "t_A": None, "t_B": None, "L": None})
+                    continue
+                if not all_window_idx:
+                    h2_events.append({"event": event_id, "status": "no_ml_prediction",
+                                      "out_of_time": False, "loeo": True,
+                                      "t_A": None, "t_B": None, "L": None})
+                    continue
+                exclusion = approved.get(lei, {bank})
+                loeo_train_idx = np.asarray([i for i, r in enumerate(rows)
+                                             if r["bank_id"] not in exclusion
+                                             and r["period"] <= win_start])
+                if len(loeo_train_idx) == 0 or y[loeo_train_idx].sum() == 0:
+                    h2_events.append({"event": event_id, "status": "no_ml_prediction",
+                                      "out_of_time": False, "loeo": True,
+                                      "t_A": None, "t_B": None, "L": None})
+                    continue
+                loeo_y = y[loeo_train_idx]
+                loeo_weight = (len(loeo_train_idx) - loeo_y.sum()) / max(1, loeo_y.sum())
+                loeo_model = model_factory(selected, params_selected, loeo_weight, space=space)
+                loeo_model.fit(dataset["X"][loeo_train_idx], loeo_y)
+                event_window_idx = np.asarray(all_window_idx)
+                loeo_scores = loeo_model.predict_proba(dataset["X"][event_window_idx])[:, 1]
+                obs = [(rows[event_window_idx[j]]["period"], float(loeo_scores[j]))
+                       for j in range(len(event_window_idx))]
+                train_probs = loeo_model.predict_proba(dataset["X"][loeo_train_idx])[:, 1]
+                train_red_share = float(np.mean(rule[loeo_train_idx] > 0))
+                thresholds_used = {
+                    "matched_far": float(np.quantile(train_probs, max(0, 1 - train_red_share))),
+                    "max_ur_0_9": float(np.quantile(train_probs, .9)),
+                }
+                is_loeo = True
+                is_oot = False
+                loeo_done += 1
+            has_rule_alert = any(rule[i] > 0 for i in all_window_idx)
+            if not has_rule_alert:
+                h2_events.append({"event": event_id, "status": "rule_no_alert",
+                                  "out_of_time": is_oot, "loeo": is_loeo,
+                                  "t_A": None, "t_B": None, "L": None})
+                continue
             leads = []
-            for threshold in thresholds.values():
-                hits = [p for p, score in obs if score >= threshold]
+            for thresh in thresholds_used.values():
+                hits = [p for p, score in obs if score >= thresh]
                 leads.append((edate.year * 4 + (edate.month - 1) // 3) -
                              (hits[-1].year * 4 + (hits[-1].month - 1) // 3) if hits else None)
-            h2_events.append({"event": event.get("event_id"), "t_A": leads[0], "t_B": leads[1],
-                              "L": leads[0] - leads[1] if None not in leads else None,
-                              "censored": None in leads})
-        lengths = [e["L"] for e in h2_events if e["L"] is not None]
-        h2 = {"thresholds": thresholds, "events": h2_events, "wilcoxon": _hyp_wilcoxon(lengths),
-              "criterion": bool(len(lengths) and np.median(lengths) >= 1)}
+            t_A, t_B = leads[0], leads[1]
+            if t_A is None:
+                h2_events.append({"event": event_id, "status": "ml_no_alert",
+                                  "out_of_time": is_oot, "loeo": is_loeo,
+                                  "t_A": None, "t_B": None, "L": None})
+                continue
+            L = t_A - t_B if t_B is not None else None
+            all_bank_periods = sorted(r["period"] for r in rows if r["bank_id"] == bank)
+            first_bank_period = all_bank_periods[0] if all_bank_periods else None
+            first_ml_hit = min((p for p, score in obs
+                                if score >= thresholds_used["matched_far"]), default=None)
+            status = ("censored" if first_ml_hit is not None and first_bank_period is not None
+                      and first_ml_hit == first_bank_period else "evaluated")
+            h2_events.append({"event": event_id, "status": status,
+                              "out_of_time": is_oot, "loeo": is_loeo,
+                              "t_A": t_A, "t_B": t_B, "L": L})
+        eval_nonzero_L = [e["L"] for e in h2_events
+                          if e["status"] == "evaluated" and e.get("L") is not None and e["L"] != 0]
+        all_reported_L = [e["L"] for e in h2_events
+                          if e["status"] in ("evaluated", "censored") and e.get("L") is not None]
+        h2 = {"thresholds": global_thresholds, "events": h2_events,
+              "wilcoxon": _hyp_wilcoxon(eval_nonzero_L),
+              "criterion": bool(all_reported_L and np.median(all_reported_L) >= 1)}
         logger.info("hypotheses run=%s phase=h3", run_dir)
         level_columns = [i for i, col in enumerate(dataset["columns"])
                          if "_rank" not in col and "_change12m" not in col]
-        params = max(search[selected], key=lambda x: x["mean_pr_auc"])["parameters"]
+        X_level = dataset["X"][:, level_columns]
+        h3_configs = _search_configs(selected, space)[:h3_budget]
+        best_level_mean_pr = -1.0
+        best_level_params = h3_configs[0] if h3_configs else {}
+        for config_params in h3_configs:
+            fold_prs = []
+            for train_idx, test_idx in folds(rows):
+                if not y[test_idx].any():
+                    continue
+                w = (len(train_idx) - y[train_idx].sum()) / max(1, y[train_idx].sum())
+                m = model_factory(selected, config_params, w, space=space)
+                m.fit(X_level[train_idx], y[train_idx])
+                fold_prs.append(average_precision_score(y[test_idx], m.predict_proba(X_level[test_idx])[:, 1]))
+            if fold_prs and np.mean(fold_prs) > best_level_mean_pr:
+                best_level_mean_pr = float(np.mean(fold_prs))
+                best_level_params = config_params
         level_pred = {}
         level_fold = {}
         for fold_no, (train_idx, test_idx) in enumerate(folds(rows), 1):
-            weight = (len(train_idx) - y[train_idx].sum()) / max(1, y[train_idx].sum())
-            model = model_factory(selected, params, weight, space=artifact.get("space", "table35"))
-            model.fit(dataset["X"][train_idx][:, level_columns], y[train_idx])
-            level_pred.update({keys[i]: float(v) for i, v in
-                               zip(test_idx, model.predict_proba(dataset["X"][test_idx][:, level_columns])[:, 1])})
-            level_fold[fold_no] = float(average_precision_score(
-                y[test_idx], model.predict_proba(dataset["X"][test_idx][:, level_columns])[:, 1]))
+            w = (len(train_idx) - y[train_idx].sum()) / max(1, y[train_idx].sum())
+            m = model_factory(selected, best_level_params, w, space=space)
+            m.fit(X_level[train_idx], y[train_idx])
+            test_scores = m.predict_proba(X_level[test_idx])[:, 1]
+            level_pred.update({keys[i]: float(v) for i, v in zip(test_idx, test_scores)})
+            level_fold[fold_no] = float(average_precision_score(y[test_idx], test_scores))
         lp = np.asarray([level_pred.get(key, np.nan) for key in keys])
         h3mask = np.isfinite(selected_scores) & np.isfinite(lp)
         primary_fold = {item["fold"]: item["pr_auc"] for item in artifact.get("fold_metrics", [])
                         if item.get("model") == selected}
-        h3 = {"dPR": _hyp_bootstrap(y[h3mask], selected_scores[h3mask], lp[h3mask],
+        h3 = {"level_params": best_level_params,
+              "dPR": _hyp_bootstrap(y[h3mask], selected_scores[h3mask], lp[h3mask],
                                     np.asarray([rows[i]["bank_id"] for i in np.flatnonzero(h3mask)]),
                                     "pr", seed, replicates),
               "fold_wilcoxon": _hyp_wilcoxon([
@@ -825,7 +580,7 @@ def hypotheses(run_dir: str | Path, seed: int = SEED, quick: bool = False) -> di
             train_idx = np.asarray([i for i, r in enumerate(rows) if r["period"].year <= 2020])
             explain_idx = np.flatnonzero(np.isfinite(selected_scores))
             weight = (len(train_idx) - y[train_idx].sum()) / max(1, y[train_idx].sum())
-            tree = model_factory(selected, params, weight, space=artifact.get("space", "table35"))
+            tree = model_factory(selected, params_selected, weight, space=space)
             tree.fit(dataset["X"][train_idx], y[train_idx])
             sv = shap.TreeExplainer(tree)(dataset["X"][explain_idx]).values
             if sv.ndim == 3:

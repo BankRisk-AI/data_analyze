@@ -50,73 +50,91 @@
     }
   },
   "H1b": {
-    "ml_recall": 0.92,
+    "ml_recall": 1.0,
     "selected_model": "XGB",
-    "v1_1_recall": 0.9266666666666666
+    "v1_1_recall": 0.9259259259259259
   },
   "H2": {
     "criterion": false,
     "events": [
       {
         "L": null,
-        "censored": true,
         "event": "ev_2016_hsh_state_aid",
-        "t_A": null,
-        "t_B": null
-      },
-      {
-        "L": null,
-        "censored": true,
-        "event": "ev_2017_popular_foltf",
-        "t_A": null,
-        "t_B": null
-      },
-      {
-        "L": null,
-        "censored": true,
-        "event": "ev_2017_mps_precautionary_recap",
-        "t_A": null,
-        "t_B": null
-      },
-      {
-        "L": null,
-        "censored": true,
-        "event": "ev_2017_vicenza_foltf",
-        "t_A": null,
-        "t_B": null
-      },
-      {
-        "L": null,
-        "censored": true,
-        "event": "ev_2017_veneto_foltf",
-        "t_A": null,
+        "loeo": true,
+        "out_of_time": false,
+        "status": "evaluated",
+        "t_A": 2,
         "t_B": null
       },
       {
         "L": 0,
-        "censored": false,
+        "event": "ev_2017_popular_foltf",
+        "loeo": true,
+        "out_of_time": false,
+        "status": "evaluated",
+        "t_A": 4,
+        "t_B": 4
+      },
+      {
+        "L": null,
+        "event": "ev_2017_mps_precautionary_recap",
+        "loeo": true,
+        "out_of_time": false,
+        "status": "evaluated",
+        "t_A": 3,
+        "t_B": null
+      },
+      {
+        "L": null,
+        "event": "ev_2017_vicenza_foltf",
+        "loeo": true,
+        "out_of_time": false,
+        "status": "evaluated",
+        "t_A": 4,
+        "t_B": null
+      },
+      {
+        "L": null,
+        "event": "ev_2017_veneto_foltf",
+        "loeo": true,
+        "out_of_time": false,
+        "status": "evaluated",
+        "t_A": 4,
+        "t_B": null
+      },
+      {
+        "L": 0,
         "event": "ev_2017_novo_banco_state_aid",
+        "loeo": false,
+        "out_of_time": true,
+        "status": "evaluated",
         "t_A": 2,
         "t_B": 2
       },
       {
         "L": 0,
-        "censored": false,
         "event": "ev_2018_ccb_liquidation",
+        "loeo": false,
+        "out_of_time": true,
+        "status": "evaluated",
         "t_A": 4,
         "t_B": 4
       },
       {
         "L": 0,
-        "censored": false,
         "event": "ev_2019_carige_temp_admin",
+        "loeo": false,
+        "out_of_time": true,
+        "status": "evaluated",
         "t_A": 3,
         "t_B": 3
       },
       {
         "L": null,
-        "censored": true,
         "event": "ev_2019_nordlb_recap",
+        "loeo": false,
+        "out_of_time": true,
+        "status": "evaluated",
         "t_A": 2,
         "t_B": null
       }
@@ -134,16 +152,24 @@
   "H3": {
     "dPR": {
       "ci95": [
-        -0.04845265416201916,
-        0.0791281666722504
+        -0.07566037499333236,
+        0.08408969421677659
       ],
-      "estimate": 0.021822689594196004,
-      "p_one_sided": 0.3008495752123938
+      "estimate": 0.008998941155875101,
+      "p_one_sided": 0.4522738630684658
     },
     "fold_wilcoxon": {
       "n": 5,
-      "p": 0.3125,
+      "p": 0.40625,
       "status": "exact"
+    },
+    "level_params": {
+      "colsample_bytree": 0.8,
+      "learning_rate": 0.01,
+      "max_depth": 3,
+      "n_estimators": 300,
+      "reg_lambda": 10,
+      "subsample": 0.7
     }
   },
   "H4": {

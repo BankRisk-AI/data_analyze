@@ -7,7 +7,8 @@ import numpy as np
 
 from app.core.database import connect
 from app.core.worker import Job, JobHandlerRegistry, ProgressReporter
-from app.modules.eba_ml.application.ml_pipeline import build_dataset, fit_final_model, train
+from app.modules.eba_ml.application.dataset import build_dataset
+from app.modules.eba_ml.application.pipeline import fit_final_model, train
 from app.modules.eba_ml.domain.constants import MAX_BUDGET
 
 
@@ -40,7 +41,7 @@ def _build(job: Job, progress: ProgressReporter):
                                 config.get("feature_set") == "robustness_v1")
         path = Path("data/ml")
         path.mkdir(parents=True, exist_ok=True)
-        from app.modules.eba_ml.application.ml_pipeline import save_dataset
+        from app.modules.eba_ml.application.dataset import save_dataset
         save_dataset(dataset, path)
         progress("dataset built", 50)
         if _cancelled(conn, job.job_id):

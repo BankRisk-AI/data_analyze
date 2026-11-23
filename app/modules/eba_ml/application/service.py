@@ -6,7 +6,8 @@ from typing import Any
 from app.core.config import get_schema
 from app.core.database import connect
 from app.core.exceptions import BadRequestError, InvalidParameter, NotFoundError
-from app.modules.eba_ml.application.lifecycle import ModelLifecycle, ProtectedModelError
+from app.modules.eba_ml.application import lifecycle
+from app.modules.eba_ml.domain.exceptions import ProtectedModelError
 from app.modules.eba_ml.domain.constants import (ALGORITHMS, FEATURE_SETS, GRIDS,
                                                   MAX_BUDGET, TARGETS, THRESHOLDS)
 from app.modules.eba_ml.infrastructure.artifacts import ArtifactStore
@@ -158,4 +159,17 @@ def archive_model(model_id: int) -> dict:
 
 def hard_delete_model(model_id: int, model_name: str) -> None:
     with connect(get_schema()) as conn:
-        ModelLifecycle.hard_delete(conn, model_id, model_name, ArtifactStore())
+        lifecycle.hard_delete(conn, model_id, model_name, ArtifactStore())
+
+
+def list_predictions(page: int, page_size: int, champion_only: bool) -> dict:
+    where = ("WHERE p.model_id IN (SELECT model_id FROM ml_model WHERE status='champion')"
+             if champion_only else "")
+    with connect(get_schema()) as conn, conn.cursor() as cur:
+        cur.execute(
+            f"SELECT p.* FROM ml_prediction p {where}"
+            f" ORDER BY p.period_end DESC,p.bank_id LIMIT %s OFFSET %s",
+            (page_size, (page - 1) * page_size))
+        columns = [d[0] for d in cur.description]
+        return {"items": [dict(zip(columns, row)) for row in cur.fetchall()],
+                "page": page, "page_size": page_size}

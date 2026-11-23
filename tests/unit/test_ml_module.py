@@ -4,10 +4,12 @@ from pathlib import Path
 
 import pytest
 
-from app.modules.eba_ml.application.lifecycle import ModelLifecycle, ProtectedModelError
+from app.modules.eba_ml.application import lifecycle
+from app.modules.eba_ml.application.lifecycle import can_delete
+from app.modules.eba_ml.domain.exceptions import ProtectedModelError
 from app.core.exceptions import InvalidParameter
 from app.modules.eba_ml.infrastructure.artifacts import ArtifactStore
-from app.modules.eba_ml.application.ml_pipeline import _search_configs
+from app.modules.eba_ml.application.models import _search_configs
 
 
 def test_artifact_store_verifies_sha(tmp_path):
@@ -44,14 +46,77 @@ def test_search_configurations_are_deterministic_and_complete():
 
 def test_protected_and_champion_models_cannot_be_deleted():
     with pytest.raises(ProtectedModelError):
-        ModelLifecycle.can_delete({"name": "protected", "protected": True,
-                                   "status": "validated"}, "protected")
+        can_delete({"name": "protected", "protected": True,
+                    "status": "validated"}, "protected")
     with pytest.raises(ProtectedModelError):
-        ModelLifecycle.can_delete({"name": "champion", "protected": False,
-                                   "status": "champion"}, "champion")
+        can_delete({"name": "champion", "protected": False,
+                    "status": "champion"}, "champion")
     with pytest.raises(InvalidParameter, match="exact model name"):
-        ModelLifecycle.can_delete({"name": "m", "protected": False,
-                                   "status": "validated"}, "M")
+        can_delete({"name": "m", "protected": False,
+                    "status": "validated"}, "M")
+
+
+def test_list_predictions_returns_correct_shape(monkeypatch):
+    from contextlib import contextmanager
+    from app.modules.eba_ml.application import service
+
+    class FakeCursor:
+        description = [("prediction_id",), ("bank_id",), ("probability",)]
+        def execute(self, *_): pass
+        def fetchall(self): return [(1, 10, 0.75), (2, 11, 0.42)]
+        def __enter__(self): return self
+        def __exit__(self, *_): pass
+
+    class FakeConn:
+        def cursor(self): return FakeCursor()
+        def __enter__(self): return self
+        def __exit__(self, *_): pass
+
+    @contextmanager
+    def fake_connect(_schema):
+        yield FakeConn()
+
+    monkeypatch.setattr(service, "connect", fake_connect)
+
+    result = service.list_predictions(page=1, page_size=50, champion_only=False)
+    assert result["page"] == 1
+    assert result["page_size"] == 50
+    assert len(result["items"]) == 2
+    assert result["items"][0] == {"prediction_id": 1, "bank_id": 10, "probability": 0.75}
+    assert "total" not in result
+
+
+def test_list_predictions_champion_only_passes_where_clause(monkeypatch):
+    from contextlib import contextmanager
+    from app.modules.eba_ml.application import service
+
+    captured = {}
+
+    class FakeCursor:
+        description = [("prediction_id",)]
+        def execute(self, sql, params):
+            captured["sql"] = sql
+            captured["params"] = params
+        def fetchall(self): return []
+        def __enter__(self): return self
+        def __exit__(self, *_): pass
+
+    class FakeConn:
+        def cursor(self): return FakeCursor()
+        def __enter__(self): return self
+        def __exit__(self, *_): pass
+
+    @contextmanager
+    def fake_connect(_schema):
+        yield FakeConn()
+
+    monkeypatch.setattr(service, "connect", fake_connect)
+
+    service.list_predictions(1, 50, champion_only=True)
+    assert "status='champion'" in captured["sql"]
+
+    service.list_predictions(1, 50, champion_only=False)
+    assert "champion" not in captured["sql"]
 
 
 def test_thesis_headline_regression_numbers():
