@@ -8,7 +8,7 @@ from openapi_spec_validator import validate
 
 from app.main import create_app
 
-FILE = Path(__file__).resolve().parents[1] / "docs" / "openapi.yaml"
+FILE = Path(__file__).resolve().parents[2] / "docs" / "openapi.yaml"
 
 
 def generated() -> dict:
