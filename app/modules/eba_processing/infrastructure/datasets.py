@@ -1,25 +1,13 @@
-"""Finding the staging table of a file and turning filters into safe SQL. Identifiers are checked against the table's real columns
-and values are always bound parameters: nothing the client sends is ever concatenated into SQL."""
+"""Finding the staging table of a file: its columns, its metadata and all tables of an import."""
 from __future__ import annotations
 
 from dataclasses import dataclass
 
 from psycopg2 import sql
 
-from app.core.exceptions import InvalidParameter, NotFoundError
-from app.modules.eba_processing.domain import Filters
-from app.shared.sql.predicates import aggregate_rows_predicate
+from app.core.exceptions import InvalidParameter
+from app.modules.eba_processing.domain.exceptions import DatasetNotFound, ImportNotFound
 from app.shared.staging import STAGING_SCHEMA, staging_identifier, staging_table_name
-
-
-class DatasetNotFound(NotFoundError):
-    kind = "dataset-not-found"
-    title = "Dataset not found"
-
-
-class ImportNotFound(NotFoundError):
-    kind = "not-found"
-    title = "Import not found"
 
 
 @dataclass(frozen=True)
@@ -69,32 +57,3 @@ def list_datasets(cur, import_id: int) -> list[Dataset]:
         except DatasetNotFound:
             continue
     return out
-
-
-def conditions(ds: Dataset, f: Filters) -> tuple[list[sql.Composable], list]:
-    """The filters as SQL conditions (identifiers checked against the table) and their bound parameters."""
-    conds: list[sql.Composable] = []
-    params: list = []
-    for name, value in (("period", f.period), ("lei_code", f.lei), ("item", f.item)):
-        if value is not None:
-            conds.append(sql.SQL("{} = %s").format(ds.col(name)))
-            params.append(value)
-    for name, value in f.dims.items():
-        conds.append(sql.SQL("{} = %s").format(ds.col(name)))
-        params.append(value)
-    if f.exclude_aggregate:
-        conds.append(sql.SQL("NOT " + aggregate_rows_predicate()))
-    return conds, params
-
-
-def clause(conds: list[sql.Composable], *extra: str) -> sql.Composable:
-    """` WHERE a AND b ...`; `extra` are fragments written by us (never by the client), appended with AND. Empty when there is nothing."""
-    parts = list(conds) + [sql.SQL(e) for e in extra]
-    if not parts:
-        return sql.SQL("")
-    return sql.SQL(" WHERE ") + sql.SQL(" AND ").join(parts)
-
-
-def where(ds: Dataset, f: Filters) -> tuple[sql.Composable, list]:
-    conds, params = conditions(ds, f)
-    return clause(conds), params

@@ -8,7 +8,8 @@ from psycopg2 import sql
 from app.core.exceptions import InvalidParameter
 from app.modules.eba_processing.domain import DEFAULT_BINS, TOP_VALUES_MAX_DISTINCT, Filters, column_role
 from app.modules.eba_processing.domain.binning import clip_bounds, make_edges, transform_bounds
-from app.modules.eba_processing.infrastructure.datasets import Dataset, clause, conditions, where
+from app.modules.eba_processing.infrastructure.datasets import Dataset
+from app.modules.eba_processing.infrastructure.sql_filters import clause, conditions, where
 from app.shared.sql.predicates import NUMBER_REGEX, aggregate_rows_predicate, blank_text, numeric_amount
 
 NUM = numeric_amount("amount")

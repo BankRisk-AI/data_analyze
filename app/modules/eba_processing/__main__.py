@@ -22,15 +22,26 @@ def main(argv=None) -> int:
 
     if a.cmd == "serve":
         import uvicorn
-        from app.modules.eba_processing.presentation.api.api import create_app
+        from app.modules.eba_processing.presentation.app import create_app
         uvicorn.run(create_app(get_schema()), host=a.host, port=a.port)
         return 0
     if a.cmd == "config":
-        from app.modules.eba_processing.presentation.api.router import build_router
-        from fastapi import FastAPI
-        from fastapi.testclient import TestClient
-        app = FastAPI(); app.include_router(build_router(get_schema()))
-        print(json.dumps(TestClient(app).get("/api/processing/config").json(), indent=2))
+        from app.modules.eba_processing.domain import (
+            AGGREGATIONS, CLIPS, DEFAULT_BINS, DEFAULT_PAGE_SIZE, DEFAULT_SCATTER_POINTS,
+            DEFAULT_TOP_VALUES, MAX_BINS, MAX_PAGE_SIZE, MAX_SCATTER_POINTS, MAX_TOP_VALUES,
+            QUERY_TIMEOUT_SECONDS, RULES, SCALES, SEVERITIES,
+        )
+        config = {
+            "default_page_size": DEFAULT_PAGE_SIZE, "max_page_size": MAX_PAGE_SIZE,
+            "default_bins": DEFAULT_BINS, "max_bins": MAX_BINS,
+            "default_scatter_points": DEFAULT_SCATTER_POINTS, "max_scatter_points": MAX_SCATTER_POINTS,
+            "max_top_values": MAX_TOP_VALUES, "query_timeout_seconds": QUERY_TIMEOUT_SECONDS,
+            "aggregations": list(AGGREGATIONS), "scales": list(SCALES),
+            "clips": list(CLIPS), "severities": list(SEVERITIES),
+            "column_roles": ["key", "label", "measure", "annotation", "dimension"],
+            "validation_rules": [{"id": r.id, "title": r.title, "severity": r.severity, "description": r.description} for r in RULES],
+        }
+        print(json.dumps(config, indent=2))
         return 0
     from app.core.exceptions import AppError
     from app.modules.eba_processing.application.validation import report_to_dict, run_validation
