@@ -9,5 +9,8 @@ on:
       - main
 
 jobs:
+  structure:
+    uses: ./.github/workflows/structure.yaml
+
   test:
     uses: ./.github/workflows/test.yaml
