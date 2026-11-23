@@ -1,6 +1,7 @@
 from datetime import date
 
-from app.ml import equal_alert_volume_recall, folds, holm_adjust, lead_time_quarters
+from app.modules.eba_ml.application.dataset import folds
+from app.modules.eba_ml.domain.metrics import equal_alert_volume_recall, holm_adjust, lead_time_quarters
 
 
 def test_temporal_folds_keep_embargo():
@@ -12,7 +13,7 @@ def test_temporal_folds_keep_embargo():
 
 
 def test_robustness_feature_policy_excludes_structural_flags():
-    from app.ml import FEATURES
+    from app.modules.eba_ml.domain.constants import FEATURES
     structural = {"stage2_share", "nace_hhi", "leverage_ratio",
                   "loan_growth_qoq", "cet1_ratio", "tier1_ratio",
                   "total_capital_ratio"}

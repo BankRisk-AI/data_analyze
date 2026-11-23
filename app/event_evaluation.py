@@ -421,3 +421,5 @@ def write_report(results: list[dict[str, Any]], path: str | Path) -> None:
         "using event outcomes to tune thresholds.",
     ]
     Path(path).write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+#todo implements a module with  api for rules

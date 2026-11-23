@@ -98,15 +98,6 @@ def build_router(schema: str | None = None):
 
     @router.get("/predictions", operation_id="list_ml_predictions", summary="List ML predictions")
     def predictions(page: PageParam = 1, page_size: SizeParam = 50, champion_only: bool = True):
-        where = ""
-        if champion_only:
-            where = "WHERE p.model_id IN (SELECT model_id FROM ml_model WHERE status='champion')"
-        with service.connect(schema or "public") as conn, conn.cursor() as cur:
-            cur.execute(f"""SELECT p.* FROM ml_prediction p {where}
-                            ORDER BY p.period_end DESC,p.bank_id LIMIT %s OFFSET %s""",
-                        (page_size, (page - 1) * page_size))
-            columns = [d[0] for d in cur.description]
-            return {"items": [dict(zip(columns, row)) for row in cur.fetchall()],
-                    "page": page, "page_size": page_size}
+        return service.list_predictions(page, page_size, champion_only)
 
     return router
