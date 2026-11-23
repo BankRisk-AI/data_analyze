@@ -1,5 +1,6 @@
+from dataclasses import asdict, dataclass, field
 
-from dataclasses import dataclass, field
+from .constants import DATA_TYPES
 
 
 @dataclass
@@ -31,3 +32,19 @@ class FileReport:
 
     pairs: list[PairReport] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
+
+
+@dataclass
+class IngestReport:
+    import_id: int
+    status: str
+    files: list[FileReport]
+
+    seconds: float = 0.0
+    error: str | None = None
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+    def data_files(self) -> list[FileReport]:
+        return [f for f in self.files if f.recognised and f.file_type in DATA_TYPES]

@@ -32,3 +32,19 @@ class UnreadableFile(IngestError):
     kind = "unreadable-file"
     status = 422
     title = "File cannot be read"
+
+
+class StagingInUse(AppError):
+    """Raised when staging tables cannot be dropped because a job is active."""
+
+    kind = "staging-in-use"
+    status = 409
+    title = "Staging is in use"
+
+
+class LoadError(AppError):
+    """Raised when an import cannot be loaded into the fact tables."""
+
+    kind = "load-error"
+    status = 409
+    title = "Import could not be loaded"
