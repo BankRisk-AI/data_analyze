@@ -9,7 +9,7 @@ on:
       - main
 
 jobs:
-  structure:
+  code_formatter:
     uses: ./.github/workflows/structure.yaml
 
   test:
