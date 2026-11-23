@@ -50,73 +50,91 @@
     }
   },
   "H1b": {
-    "ml_recall": 0.92,
+    "ml_recall": 0.9876543209876543,
     "selected_model": "RF",
-    "v1_1_recall": 0.9266666666666666
+    "v1_1_recall": 0.9259259259259259
   },
   "H2": {
     "criterion": false,
     "events": [
       {
         "L": null,
-        "censored": true,
         "event": "ev_2016_hsh_state_aid",
-        "t_A": null,
+        "loeo": true,
+        "out_of_time": false,
+        "status": "evaluated",
+        "t_A": 2,
         "t_B": null
       },
       {
         "L": null,
-        "censored": true,
         "event": "ev_2017_popular_foltf",
-        "t_A": null,
+        "loeo": true,
+        "out_of_time": false,
+        "status": "evaluated",
+        "t_A": 4,
         "t_B": null
       },
       {
         "L": null,
-        "censored": true,
         "event": "ev_2017_mps_precautionary_recap",
-        "t_A": null,
-        "t_B": null
-      },
-      {
-        "L": null,
-        "censored": true,
-        "event": "ev_2017_vicenza_foltf",
-        "t_A": null,
-        "t_B": null
-      },
-      {
-        "L": null,
-        "censored": true,
-        "event": "ev_2017_veneto_foltf",
-        "t_A": null,
+        "loeo": true,
+        "out_of_time": false,
+        "status": "evaluated",
+        "t_A": 3,
         "t_B": null
       },
       {
         "L": 0,
-        "censored": false,
-        "event": "ev_2017_novo_banco_state_aid",
-        "t_A": 2,
-        "t_B": 2
+        "event": "ev_2017_vicenza_foltf",
+        "loeo": true,
+        "out_of_time": false,
+        "status": "evaluated",
+        "t_A": 4,
+        "t_B": 4
       },
       {
         "L": null,
-        "censored": true,
-        "event": "ev_2018_ccb_liquidation",
+        "event": "ev_2017_veneto_foltf",
+        "loeo": true,
+        "out_of_time": false,
+        "status": "evaluated",
         "t_A": 4,
         "t_B": null
       },
       {
         "L": 0,
-        "censored": false,
+        "event": "ev_2017_novo_banco_state_aid",
+        "loeo": false,
+        "out_of_time": true,
+        "status": "evaluated",
+        "t_A": 2,
+        "t_B": 2
+      },
+      {
+        "L": null,
+        "event": "ev_2018_ccb_liquidation",
+        "loeo": false,
+        "out_of_time": true,
+        "status": "evaluated",
+        "t_A": 4,
+        "t_B": null
+      },
+      {
+        "L": 0,
         "event": "ev_2019_carige_temp_admin",
+        "loeo": false,
+        "out_of_time": true,
+        "status": "evaluated",
         "t_A": 3,
         "t_B": 3
       },
       {
         "L": null,
-        "censored": true,
         "event": "ev_2019_nordlb_recap",
+        "loeo": false,
+        "out_of_time": true,
+        "status": "evaluated",
         "t_A": 2,
         "t_B": null
       }
@@ -134,16 +152,21 @@
   "H3": {
     "dPR": {
       "ci95": [
-        -0.031270670241846654,
-        0.043567277009611854
+        -0.09635231220655306,
+        0.041057285632570266
       ],
-      "estimate": 0.011786475470061009,
-      "p_one_sided": 0.3378310844577711
+      "estimate": -0.013523303540699777,
+      "p_one_sided": 0.7151424287856072
     },
     "fold_wilcoxon": {
       "n": 5,
-      "p": 0.3125,
+      "p": 0.78125,
       "status": "exact"
+    },
+    "level_params": {
+      "max_depth": 15,
+      "max_features": "sqrt",
+      "min_samples_leaf": 5
     }
   },
   "H4": {

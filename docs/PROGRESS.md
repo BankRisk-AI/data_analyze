@@ -51,6 +51,27 @@
   including persistence, worker jobs, API, React screens, protection rules,
   reproducibility tests, and the 5e/5f implementation plan. Next = owner
   decisions, then 5e backend.
+- Stage 5b-R (2026-11-21): re-ran the full ML training pipeline with the
+  production-frozen dataset (semiannual, T5, robust) under two search spaces:
+  `table35` (XGB selected) in `data/ml/5bR_t35/` and `extended` (RF selected)
+  in `data/ml/5bR/`. Results are content-addressed and must not be modified.
+- Stage 5b-R1 (2026-11-21): ran the initial `hypotheses` command on both runs;
+  all five pre-2017 primary events were reported as censored (no out-of-fold
+  predictions), and H3 reused the selected model's hyperparameters.
+- Stage 5b-R1b (2026-11-21): identified two design gaps — LOEO retraining
+  needed for five pre-2017 events, and H3 must run its own hyperparameter
+  search rather than inherit from the selected model.
+- Stage 5b-R2 (2026-11-21): updated `hypotheses()` with global thresholds and
+  per-event structure; both full runs completed with valid `hypotheses.json`
+  files in `data/ml/5bR_t35/` and `data/ml/5bR/`.
+- Stage 5b-R2b (2026-11-23): implemented LOEO (leave-one-event-out) retraining
+  for the five pre-2017 primary events (HSH, Popular, MPS, Vicenza, Veneto),
+  per-event H2 status classification (evaluated / no_ml_prediction /
+  ml_no_alert / rule_no_alert / censored), H3 own hyperparameter search (60
+  configs, same space/seed/folds as selected), and `--quick` limits (H3
+  budget=2, LOEO=1). Re-ran both full hypotheses. Next = Stage 5b-R3
+  (sensitivities: original run, T5_noT1, quarterly; OOB curve with
+  Brier/log-loss).
 
 - Stage 0: make the project installable and testable (2026-11-12)
 - Stage 1a: set-based staging-to-fact promotion (2026-11-12); measured

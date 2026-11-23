@@ -14,7 +14,7 @@ import yaml
 
 from app.modules.eba_ml.domain.constants import FEATURES, TARGETS
 from app.modules.eba_ml.application.dataset import (
-    _months, build_dataset, save_dataset, folds,
+    _months, _approved_ids, build_dataset, save_dataset, folds,
 )
 from app.modules.eba_ml.application.models import (
     model_factory, _search_configs, SEED, SEARCH_CONFIGURATIONS,
@@ -369,6 +369,8 @@ def hypotheses(run_dir: str | Path, seed: int = SEED, quick: bool = False) -> di
     from app.core.database import connect
     conn = connect(get_schema())
     replicates = 20 if quick else 2000
+    h3_budget = 2 if quick else SEARCH_CONFIGURATIONS
+    loeo_limit = 1 if quick else None
     try:
         dataset = build_dataset(conn, artifact.get("grid", "semiannual"), True)
         rows = dataset["rows"]
@@ -420,57 +422,153 @@ def hypotheses(run_dir: str | Path, seed: int = SEED, quick: bool = False) -> di
         period = np.asarray([r["period"].isoformat() for r in rows])
         selected_alert = np.zeros(len(y), bool)
         rule_alert = rule > 0
-        for p in np.unique(period):
+        for p in np.unique(period[mask]):  # OOF periods only — pre-OOF NaN scores cause argsort artefacts
             idx = np.flatnonzero(period == p)
             count = int(rule_alert[idx].sum())
             if count:
-                selected_alert[idx[np.argsort(-selected_scores[idx], kind="stable")[-count:]]] = True
-        h1b = {"selected_model": selected, "ml_recall": float((selected_alert & (y == 1)).sum() / max(1, y.sum())),
-               "v1_1_recall": float((rule_alert & (y == 1)).sum() / max(1, y.sum()))}
+                selected_alert[idx[np.argsort(-selected_scores[idx], kind="stable")[:count]]] = True
+        oof_pos = max(1, y[mask].sum())
+        h1b = {"selected_model": selected,
+               "ml_recall": float((selected_alert[mask] & (y[mask] == 1)).sum() / oof_pos),
+               "v1_1_recall": float((rule_alert[mask] & (y[mask] == 1)).sum() / oof_pos)}
         logger.info("hypotheses run=%s phase=h2", run_dir)
-        h2_events = []
+        approved = _approved_ids(conn)
+        space = artifact.get("space", "table35")
+        params_selected = max(search[selected], key=lambda x: x["mean_pr_auc"])["parameters"]
         probs = selected_scores[mask]
         red_share = float(np.mean(rule[mask] > 0))
-        thresholds = {"matched_far": float(np.quantile(probs, max(0, 1 - red_share))),
-                      "max_ur_0_9": float(np.quantile(probs, .9))}
+        global_thresholds = {
+            "matched_far": float(np.quantile(probs, max(0, 1 - red_share))),
+            "max_ur_0_9": float(np.quantile(probs, .9)),
+        }
         catalogue = yaml.safe_load(Path("config/events.yaml").read_text()) or {}
-        for event in catalogue.get("events", []):
-            if event.get("set") != "primary" or event.get("status") != "included":
-                continue
+        primary_events = [e for e in catalogue.get("events", [])
+                          if e.get("set") == "primary" and e.get("status") == "included"]
+        h2_events = []
+        loeo_done = 0
+        for event in primary_events:
             bank = event.get("bank_id")
+            lei = (event.get("bank_lei") or "").strip()
+            event_id = event.get("event_id")
             edate = date.fromisoformat(event["event_date"])
-            obs = [(rows[i]["period"], selected_scores[i]) for i in np.flatnonzero(mask)
-                   if rows[i]["bank_id"] == bank and _months(edate, -12) <= rows[i]["period"] <= _months(edate, -3)]
+            win_start = _months(edate, -12)
+            win_end = _months(edate, -3)
+            all_window_idx = [i for i, r in enumerate(rows)
+                              if r["bank_id"] == bank
+                              and win_start <= r["period"] <= win_end]
+            oof_window_idx = [i for i in np.flatnonzero(mask)
+                              if rows[i]["bank_id"] == bank
+                              and win_start <= rows[i]["period"] <= win_end]
+            if oof_window_idx:
+                obs = [(rows[i]["period"], float(selected_scores[i])) for i in oof_window_idx]
+                thresholds_used = global_thresholds
+                is_loeo = False
+                is_oot = True
+            else:
+                if loeo_limit is not None and loeo_done >= loeo_limit:
+                    h2_events.append({"event": event_id, "status": "no_ml_prediction",
+                                      "out_of_time": False, "loeo": False,
+                                      "t_A": None, "t_B": None, "L": None})
+                    continue
+                if not all_window_idx:
+                    h2_events.append({"event": event_id, "status": "no_ml_prediction",
+                                      "out_of_time": False, "loeo": True,
+                                      "t_A": None, "t_B": None, "L": None})
+                    continue
+                exclusion = approved.get(lei, {bank})
+                loeo_train_idx = np.asarray([i for i, r in enumerate(rows)
+                                             if r["bank_id"] not in exclusion
+                                             and r["period"] <= win_start])
+                if len(loeo_train_idx) == 0 or y[loeo_train_idx].sum() == 0:
+                    h2_events.append({"event": event_id, "status": "no_ml_prediction",
+                                      "out_of_time": False, "loeo": True,
+                                      "t_A": None, "t_B": None, "L": None})
+                    continue
+                loeo_y = y[loeo_train_idx]
+                loeo_weight = (len(loeo_train_idx) - loeo_y.sum()) / max(1, loeo_y.sum())
+                loeo_model = model_factory(selected, params_selected, loeo_weight, space=space)
+                loeo_model.fit(dataset["X"][loeo_train_idx], loeo_y)
+                event_window_idx = np.asarray(all_window_idx)
+                loeo_scores = loeo_model.predict_proba(dataset["X"][event_window_idx])[:, 1]
+                obs = [(rows[event_window_idx[j]]["period"], float(loeo_scores[j]))
+                       for j in range(len(event_window_idx))]
+                train_probs = loeo_model.predict_proba(dataset["X"][loeo_train_idx])[:, 1]
+                train_red_share = float(np.mean(rule[loeo_train_idx] > 0))
+                thresholds_used = {
+                    "matched_far": float(np.quantile(train_probs, max(0, 1 - train_red_share))),
+                    "max_ur_0_9": float(np.quantile(train_probs, .9)),
+                }
+                is_loeo = True
+                is_oot = False
+                loeo_done += 1
+            has_rule_alert = any(rule[i] > 0 for i in all_window_idx)
+            if not has_rule_alert:
+                h2_events.append({"event": event_id, "status": "rule_no_alert",
+                                  "out_of_time": is_oot, "loeo": is_loeo,
+                                  "t_A": None, "t_B": None, "L": None})
+                continue
             leads = []
-            for threshold in thresholds.values():
-                hits = [p for p, score in obs if score >= threshold]
+            for thresh in thresholds_used.values():
+                hits = [p for p, score in obs if score >= thresh]
                 leads.append((edate.year * 4 + (edate.month - 1) // 3) -
                              (hits[-1].year * 4 + (hits[-1].month - 1) // 3) if hits else None)
-            h2_events.append({"event": event.get("event_id"), "t_A": leads[0], "t_B": leads[1],
-                              "L": leads[0] - leads[1] if None not in leads else None,
-                              "censored": None in leads})
-        lengths = [e["L"] for e in h2_events if e["L"] is not None]
-        h2 = {"thresholds": thresholds, "events": h2_events, "wilcoxon": _hyp_wilcoxon(lengths),
-              "criterion": bool(len(lengths) and np.median(lengths) >= 1)}
+            t_A, t_B = leads[0], leads[1]
+            if t_A is None:
+                h2_events.append({"event": event_id, "status": "ml_no_alert",
+                                  "out_of_time": is_oot, "loeo": is_loeo,
+                                  "t_A": None, "t_B": None, "L": None})
+                continue
+            L = t_A - t_B if t_B is not None else None
+            all_bank_periods = sorted(r["period"] for r in rows if r["bank_id"] == bank)
+            first_bank_period = all_bank_periods[0] if all_bank_periods else None
+            first_ml_hit = min((p for p, score in obs
+                                if score >= thresholds_used["matched_far"]), default=None)
+            status = ("censored" if first_ml_hit is not None and first_bank_period is not None
+                      and first_ml_hit == first_bank_period else "evaluated")
+            h2_events.append({"event": event_id, "status": status,
+                              "out_of_time": is_oot, "loeo": is_loeo,
+                              "t_A": t_A, "t_B": t_B, "L": L})
+        eval_nonzero_L = [e["L"] for e in h2_events
+                          if e["status"] == "evaluated" and e.get("L") is not None and e["L"] != 0]
+        all_reported_L = [e["L"] for e in h2_events
+                          if e["status"] in ("evaluated", "censored") and e.get("L") is not None]
+        h2 = {"thresholds": global_thresholds, "events": h2_events,
+              "wilcoxon": _hyp_wilcoxon(eval_nonzero_L),
+              "criterion": bool(all_reported_L and np.median(all_reported_L) >= 1)}
         logger.info("hypotheses run=%s phase=h3", run_dir)
         level_columns = [i for i, col in enumerate(dataset["columns"])
                          if "_rank" not in col and "_change12m" not in col]
-        params = max(search[selected], key=lambda x: x["mean_pr_auc"])["parameters"]
+        X_level = dataset["X"][:, level_columns]
+        h3_configs = _search_configs(selected, space)[:h3_budget]
+        best_level_mean_pr = -1.0
+        best_level_params = h3_configs[0] if h3_configs else {}
+        for config_params in h3_configs:
+            fold_prs = []
+            for train_idx, test_idx in folds(rows):
+                if not y[test_idx].any():
+                    continue
+                w = (len(train_idx) - y[train_idx].sum()) / max(1, y[train_idx].sum())
+                m = model_factory(selected, config_params, w, space=space)
+                m.fit(X_level[train_idx], y[train_idx])
+                fold_prs.append(average_precision_score(y[test_idx], m.predict_proba(X_level[test_idx])[:, 1]))
+            if fold_prs and np.mean(fold_prs) > best_level_mean_pr:
+                best_level_mean_pr = float(np.mean(fold_prs))
+                best_level_params = config_params
         level_pred = {}
         level_fold = {}
         for fold_no, (train_idx, test_idx) in enumerate(folds(rows), 1):
-            weight = (len(train_idx) - y[train_idx].sum()) / max(1, y[train_idx].sum())
-            model = model_factory(selected, params, weight, space=artifact.get("space", "table35"))
-            model.fit(dataset["X"][train_idx][:, level_columns], y[train_idx])
-            level_pred.update({keys[i]: float(v) for i, v in
-                               zip(test_idx, model.predict_proba(dataset["X"][test_idx][:, level_columns])[:, 1])})
-            level_fold[fold_no] = float(average_precision_score(
-                y[test_idx], model.predict_proba(dataset["X"][test_idx][:, level_columns])[:, 1]))
+            w = (len(train_idx) - y[train_idx].sum()) / max(1, y[train_idx].sum())
+            m = model_factory(selected, best_level_params, w, space=space)
+            m.fit(X_level[train_idx], y[train_idx])
+            test_scores = m.predict_proba(X_level[test_idx])[:, 1]
+            level_pred.update({keys[i]: float(v) for i, v in zip(test_idx, test_scores)})
+            level_fold[fold_no] = float(average_precision_score(y[test_idx], test_scores))
         lp = np.asarray([level_pred.get(key, np.nan) for key in keys])
         h3mask = np.isfinite(selected_scores) & np.isfinite(lp)
         primary_fold = {item["fold"]: item["pr_auc"] for item in artifact.get("fold_metrics", [])
                         if item.get("model") == selected}
-        h3 = {"dPR": _hyp_bootstrap(y[h3mask], selected_scores[h3mask], lp[h3mask],
+        h3 = {"level_params": best_level_params,
+              "dPR": _hyp_bootstrap(y[h3mask], selected_scores[h3mask], lp[h3mask],
                                     np.asarray([rows[i]["bank_id"] for i in np.flatnonzero(h3mask)]),
                                     "pr", seed, replicates),
               "fold_wilcoxon": _hyp_wilcoxon([
@@ -482,7 +580,7 @@ def hypotheses(run_dir: str | Path, seed: int = SEED, quick: bool = False) -> di
             train_idx = np.asarray([i for i, r in enumerate(rows) if r["period"].year <= 2020])
             explain_idx = np.flatnonzero(np.isfinite(selected_scores))
             weight = (len(train_idx) - y[train_idx].sum()) / max(1, y[train_idx].sum())
-            tree = model_factory(selected, params, weight, space=artifact.get("space", "table35"))
+            tree = model_factory(selected, params_selected, weight, space=space)
             tree.fit(dataset["X"][train_idx], y[train_idx])
             sv = shap.TreeExplainer(tree)(dataset["X"][explain_idx]).values
             if sv.ndim == 3:
