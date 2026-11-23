@@ -3,7 +3,7 @@ import pytest
 from app.core.exceptions import InvalidParameter
 from app.modules.eba_processing.application import datasets as D
 from app.modules.eba_processing.domain import Filters
-from app.modules.eba_processing.infrastructure.datasets import DatasetNotFound, ImportNotFound
+from app.modules.eba_processing.domain.exceptions import DatasetNotFound, ImportNotFound
 from app.modules.eba_ingest import drop_staging
 from helpers import banks, lei, stage
 

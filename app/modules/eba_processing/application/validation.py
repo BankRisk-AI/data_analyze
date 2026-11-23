@@ -8,19 +8,12 @@ from psycopg2 import sql
 
 from app.core.config import get_schema
 from app.core.database import connect
-from app.core.exceptions import AppError
 from app.core.logging import get_logger
 from app.modules.eba_processing.application.session import read_session
-from app.modules.eba_processing.domain import RULES, FileValidation, ValidationReport
+from app.modules.eba_processing.domain import RULES, FileValidation, ImportNotFound, NothingToValidate, ValidationReport
 from app.modules.eba_processing.infrastructure import jobs
-from app.modules.eba_processing.infrastructure.datasets import ImportNotFound, import_exists, list_datasets
+from app.modules.eba_processing.infrastructure.datasets import import_exists, list_datasets
 from app.modules.eba_processing.infrastructure.validation_sql import RULE_FUNCTIONS
-
-
-class NothingToValidate(AppError):
-    kind = "no-staging"
-    status = 409
-    title = "Nothing to validate"
 
 
 logger = get_logger(__name__)

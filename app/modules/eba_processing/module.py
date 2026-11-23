@@ -1,6 +1,6 @@
 from app.core.module import ModuleSpec
 from app.modules.eba_processing.application.worker_handler import register_handlers
-from app.modules.eba_processing.presentation.api.router import TAG, build_router
+from app.modules.eba_processing.presentation.router import TAG, build_router
 
 SPEC = ModuleSpec(
     name="eba_processing",

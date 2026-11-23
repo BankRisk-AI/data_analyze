@@ -93,7 +93,7 @@ def test_a_dropped_staging_gives_404_everywhere_never_500(client, staged):
 
 def test_a_slow_query_becomes_a_504_problem(client, staged, monkeypatch):
     import app.modules.eba_processing.application.session as session
-    import app.modules.eba_processing.infrastructure.analytics as infra
+    import app.modules.eba_processing.infrastructure.sql_analytics as infra
     monkeypatch.setattr(session, "QUERY_TIMEOUT_SECONDS", 1)
     monkeypatch.setattr(infra, "profile", lambda cur, *a, **k: cur.execute("SELECT pg_sleep(3)"))
     body = problem(client.get(f"/api/datasets/{staged[1]}/profile"), 504, "query-too-slow")
@@ -101,7 +101,7 @@ def test_a_slow_query_becomes_a_504_problem(client, staged, monkeypatch):
 
 
 def test_unexpected_errors_do_not_leak_details(db, staged, monkeypatch):
-    import app.modules.eba_processing.infrastructure.analytics as infra
+    import app.modules.eba_processing.infrastructure.sql_analytics as infra
     monkeypatch.setattr(infra, "profile", lambda *a, **k: 1 / 0)
     r = TestClient(create_app(schema=db.schema, storage_dir=db.storage), raise_server_exceptions=False).get(f"/api/datasets/{staged[1]}/profile")
     body = problem(r, 500, "internal-error")

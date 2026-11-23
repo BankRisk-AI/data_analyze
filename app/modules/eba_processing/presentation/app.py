@@ -5,7 +5,7 @@ from fastapi import FastAPI
 
 from app.core.api import create_base_app, mount_ui
 from app.core.config import get_cors_origins, get_schema, get_ui_dir
-from app.modules.eba_processing.presentation.api.router import build_router
+from app.modules.eba_processing.presentation.router import build_router
 
 
 def create_app(schema: str | None = None, ui_dir: str | None = None) -> FastAPI:

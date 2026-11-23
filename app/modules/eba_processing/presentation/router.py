@@ -14,7 +14,7 @@ from app.modules.eba_processing.domain import (
     AGGREGATIONS, CLIPS, DEFAULT_BINS, DEFAULT_PAGE_SIZE, DEFAULT_SCATTER_POINTS, DEFAULT_TOP_VALUES, MAX_BINS, MAX_PAGE_SIZE, MAX_SCATTER_POINTS,
     MAX_TOP_VALUES, QUERY_TIMEOUT_SECONDS, RULES, SCALES, SEVERITIES, Filters, parse_dims,
 )
-from app.modules.eba_processing.presentation.api.schemas import (
+from app.modules.eba_processing.presentation.schemas import (
     DatasetSummary, HistogramResponse, ItemPage, NullAnalysis, PreviewPage, ProcessingConfig, ProfileResponse, ScatterResponse, ValidationQueued, ValidationState,
 )
 

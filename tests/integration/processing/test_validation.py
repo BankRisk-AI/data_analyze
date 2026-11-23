@@ -4,7 +4,8 @@ from app.core.worker import Worker
 from app.modules.eba_ingest import drop_staging
 from app.modules.eba_ingest.application.queries import StagingInUse
 from app.modules.eba_processing.application import validation as V
-from app.modules.eba_processing.application.validation import NothingToValidate, report_to_dict
+from app.modules.eba_processing.domain.exceptions import NothingToValidate
+from app.modules.eba_processing.application.validation import report_to_dict
 from app.worker import build_registry
 from helpers import banks, stage
 

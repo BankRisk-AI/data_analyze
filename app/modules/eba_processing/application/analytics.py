@@ -6,7 +6,7 @@ from app.modules.eba_processing.application.session import read_session
 from app.modules.eba_processing.domain import (
     AGGREGATIONS, CLIPS, DEFAULT_BINS, DEFAULT_SCATTER_POINTS, DEFAULT_TOP_VALUES, MAX_BINS, MAX_SCATTER_POINTS, MAX_TOP_VALUES, SCALES, Filters,
 )
-from app.modules.eba_processing.infrastructure import analytics
+from app.modules.eba_processing.infrastructure import sql_analytics as analytics
 from app.modules.eba_processing.infrastructure.datasets import get_dataset
 
 

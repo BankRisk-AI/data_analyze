@@ -4,7 +4,7 @@ from __future__ import annotations
 from app.core.exceptions import InvalidParameter
 from app.modules.eba_processing.application.session import read_session
 from app.modules.eba_processing.domain import DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, SORT_ORDERS, Filters, column_role
-from app.modules.eba_processing.infrastructure import analytics
+from app.modules.eba_processing.infrastructure import sql_analytics as analytics
 from app.modules.eba_processing.infrastructure.datasets import Dataset, get_dataset, list_datasets
 
 
