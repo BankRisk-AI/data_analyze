@@ -105,11 +105,18 @@ def stage_file(cur, insp: Inspection) -> None:
                 normalised += 1
             return row
         rows = (normalise_amount(row) for row in rows)
+    t_copy = time.perf_counter()
     rep.rows = staging.create_and_copy(cur, rep.file_id, columns, rows, rep.name)
+    t_fill = time.perf_counter()
     rep.normalised_amounts = normalised if "amount" in columns else 0
     rep.staging_table = staging_qualified(rep.file_id)
     fill_period_report(cur, staging_identifier(rep.file_id), rep)
-    rep.seconds = round(time.perf_counter() - started, 2)
+    t_done = time.perf_counter()
+    rep.seconds = round(t_done - started, 2)
+    logger.info(
+        "stage %s: total=%.2fs copy=%.2fs (%d rows) fill=%.2fs",
+        rep.name, rep.seconds, t_fill - t_copy, rep.rows, t_done - t_fill,
+    )
 
 
 def _process(cur, import_id: int, files: list[repo.SourceFileRow], emit, job_id: int | None, user_id: int | None, t0: float) -> IngestReport:
@@ -118,7 +125,9 @@ def _process(cur, import_id: int, files: list[repo.SourceFileRow], emit, job_id:
     for i, f in enumerate(files):
         base = 5 + int(span * i)
         emit(f"inspecting {f.name}", base)
+        t_inspect = time.perf_counter()
         insp = inspect_file(f)
+        logger.info("inspect %s: %.2fs", f.name, time.perf_counter() - t_inspect)
         if insp.is_data:
             emit(f"staging {f.name}", base + int(span * 0.2))
             stage_file(cur, insp)
@@ -131,6 +140,11 @@ def _process(cur, import_id: int, files: list[repo.SourceFileRow], emit, job_id:
     emit("saving the report", 98)         # BEFORE finish_job: that UPDATE locks the job row, and progress updates use other connections
     repo.finish_job(cur, import_id, job_id, ok, report.error)
     report.seconds = round(time.perf_counter() - t0, 2)
+    logger.info(
+        "process total: %.2fs — %s",
+        report.seconds,
+        ", ".join(f"{r.name}={r.seconds}s" for r in reports if r.seconds > 0),
+    )
     repo.save_report(cur, import_id, report.to_dict())
     repo.add_audit(cur, user_id, "import created", "import_batch", str(import_id), {"files": [r.name for r in reports]})
     return report
@@ -165,7 +179,9 @@ def ingest(paths, storage_dir: str, user_id: int | None = None, edition_label: s
     (the stored copies created by this call are removed too). Raises FileTooLarge, DuplicateFile or UnreadableFile."""
     t0 = time.perf_counter()
     say = progress or (lambda message: None)
+    t_store = time.perf_counter()
     stored, created_now = store_files(paths, storage_dir, max_bytes, say)
+    logger.info("store_files: %.2fs for %d file(s)", time.perf_counter() - t_store, len(stored))
     conn = None
     try:
         conn = connect(schema)

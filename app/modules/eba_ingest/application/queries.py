@@ -2,14 +2,8 @@
 from __future__ import annotations
 
 from app.core.database import connect
-from app.core.exceptions import AppError
+from app.modules.eba_ingest.domain.exceptions import StagingInUse  # noqa: F401 (re-exported for callers)
 from app.modules.eba_ingest.infrastructure.database import repositories as repo
-
-
-class StagingInUse(AppError):
-    kind = "staging-in-use"
-    status = 409
-    title = "Staging is in use"
 
 
 def drop_staging(import_id: int, schema: str = "public") -> int:
