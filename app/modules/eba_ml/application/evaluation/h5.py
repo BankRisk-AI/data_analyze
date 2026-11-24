@@ -9,9 +9,9 @@ from typing import Any
 
 import numpy as np
 
-from app.modules.eba_ml.application.models import model_factory
-from app.modules.eba_ml.domain.families import group_shap_values, SENSITIVITY_GROUPS
 from app.modules.eba_ml.application.evaluation.context import RunContext
+from app.modules.eba_ml.application.models import model_factory
+from app.modules.eba_ml.domain.families import SENSITIVITY_GROUPS, group_shap_values
 
 
 def compute_h5(ctx: RunContext) -> dict[str, Any]:

@@ -13,20 +13,25 @@ from typing import Any
 import numpy as np
 
 from app.modules.eba_ml.application.dataset import build_dataset, save_dataset
-from app.modules.eba_ml.application.models import model_factory, SEED
 from app.modules.eba_ml.application.io import get_logger, write_json
+from app.modules.eba_ml.application.models import SEED, model_factory
+from app.modules.eba_ml.application.training.assembly import (
+    assemble_result,
+    build_event_table,
+    build_labels,
+    build_split_report,
+)
+from app.modules.eba_ml.application.training.comparators import load_comparator_scores
+from app.modules.eba_ml.application.training.final_test import evaluate_final_test
+from app.modules.eba_ml.application.training.metrics import (
+    comparator_metrics_and_predictions,
+    compute_bootstrap_cis,
+    compute_event_metrics,
+    compute_pooled_metrics,
+)
+from app.modules.eba_ml.application.training.oof import refit_folds
 from app.modules.eba_ml.application.training.search import run_fold_search
 from app.modules.eba_ml.application.training.trainers import oob_curve
-from app.modules.eba_ml.application.training.oof import refit_folds
-from app.modules.eba_ml.application.training.final_test import evaluate_final_test
-from app.modules.eba_ml.application.training.comparators import load_comparator_scores
-from app.modules.eba_ml.application.training.metrics import (
-    compute_pooled_metrics, comparator_metrics_and_predictions,
-    compute_event_metrics, compute_bootstrap_cis,
-)
-from app.modules.eba_ml.application.training.assembly import (
-    build_labels, build_split_report, build_event_table, assemble_result,
-)
 from app.modules.eba_ml.domain.constants import TARGETS
 
 EU_EBA_V1_1_PROFILE_SHA = "28a28fa0f89da8435abdb0d6042a69cb2bff421c456926374dd202e0089f7e40"

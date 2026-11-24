@@ -23,10 +23,10 @@ def smote_fold_comparison(
 
     Returns None when the training fold has fewer than 2 classes (SMOTE cannot run).
     """
-    from sklearn.metrics import average_precision_score
     from imblearn.over_sampling import SMOTE
     from sklearn.base import clone
     from sklearn.impute import SimpleImputer
+    from sklearn.metrics import average_precision_score
 
     if len(np.unique(y_train)) < 2:
         return None

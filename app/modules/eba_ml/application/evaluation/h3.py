@@ -11,9 +11,9 @@ import numpy as np
 from sklearn.metrics import average_precision_score
 
 from app.modules.eba_ml.application.dataset import folds
-from app.modules.eba_ml.application.models import model_factory, _search_configs
-from app.modules.eba_ml.domain.metrics import _hyp_bootstrap, _hyp_wilcoxon
 from app.modules.eba_ml.application.evaluation.context import RunContext
+from app.modules.eba_ml.application.models import _search_configs, model_factory
+from app.modules.eba_ml.domain.metrics import _hyp_bootstrap, _hyp_wilcoxon
 
 
 def compute_h3(ctx: RunContext, seed: int, replicates: int, h3_budget: int) -> dict[str, Any]:

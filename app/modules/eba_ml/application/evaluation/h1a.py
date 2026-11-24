@@ -8,8 +8,8 @@ from typing import Any
 
 import numpy as np
 
-from app.modules.eba_ml.domain.metrics import _hyp_bootstrap, _hyp_wilcoxon, holm_adjust
 from app.modules.eba_ml.application.evaluation.context import RunContext
+from app.modules.eba_ml.domain.metrics import _hyp_bootstrap, _hyp_wilcoxon, holm_adjust
 
 
 def compute_h1a(ctx: RunContext, seed: int, replicates: int) -> dict[str, Any]:
