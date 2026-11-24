@@ -1,8 +1,10 @@
 # Current Project State
 
 ## Status
-Stage ML-R-A structural refactor of `eba_ml/application/pipeline.py` complete (2026-11-24).
-Outputs are bit-identical to pre-refactor. 111 unit tests pass.
+Stage T-1 cleanup of `eba_ml` complete (2026-11-24).
+All T1--T5 target code, LOEO, comparators, event metrics, bootstrap CIs,
+SHAP-in-training, `fit_final_model`, `h1b.py`, and `h2.py` removed.
+83 unit tests pass.
 
 ## Verified environment
 - Branch: `feat/improve-workflow`
@@ -12,26 +14,36 @@ Outputs are bit-identical to pre-refactor. 111 unit tests pass.
   `eba_public_analysis`, `eba_ml`
 
 ## Current work
-- Stage ML-R-A complete: `pipeline.py` split into `training/` and `evaluation/` subpackages.
-- Deprecated `pipeline.py` shim re-exports `train`, `hypotheses`, `fit_final_model`.
-- All new files ≤200 lines, all new functions ≤50 lines.
+- T-1 complete: ML code aligned with thesis §3 (E2/E3 targets, no comparators).
+- `train()` now accepts `y: np.ndarray` externally; `cmd_train` and `_train`
+  handler stub `NotImplementedError("T-2: ...")`.
+- `score_panel` job and all API routes still work.
+- HSH confirmed: bank_id 24 (Hamburg Commercial Bank AG) == bank_id 185
+  (HSH Beteiligungs Management GmbH) via `previous_leis` crosswalk.
 
-## New files from ML-R-A
-- `config/ml.yaml` — all adjustable parameters with comments
-- `app/modules/eba_ml/domain/thresholds.py` — threshold helpers
-- `app/modules/eba_ml/domain/lead_time.py` — re-export of lead_time_quarters
+## Active files in eba_ml
+- `config/ml.yaml` — all adjustable parameters
+- `app/modules/eba_ml/domain/constants.py` — GRIDS, ALGORITHMS, FEATURE_SETS, THRESHOLDS, MAX_BUDGET, FEATURES (no TARGETS)
 - `app/modules/eba_ml/domain/families.py` — SHAP family mapping
 - `app/modules/eba_ml/application/io.py` — logger + atomic JSON write
-- `app/modules/eba_ml/application/training/` — 10 files (train, search, trainers,
-  oof, final_test, smote, comparators, metrics, assembly, README)
-- `app/modules/eba_ml/application/evaluation/` — 9 files (hypotheses, context,
-  h1a, h1b, h2, h3, h5, README)
-- `app/modules/eba_ml/__main__.py` — CLI: `ml train` and `ml hypotheses`
-- `tests/unit/test_ml_domain.py` — 23 pure-domain unit tests (111 total pass)
-- `tests/golden_compare.py` — bit-identical comparison script
+- `app/modules/eba_ml/application/dataset.py` — build_dataset (no targets), save_dataset, folds
+- `app/modules/eba_ml/application/training/` — train, search, trainers, oof, final_test, smote, metrics, assembly, README
+- `app/modules/eba_ml/application/evaluation/` — hypotheses (H1a/H3/H5 only), context, h1a, h3, h5, README
+- `app/modules/eba_ml/__main__.py` — CLI: `ml train` (stubbed), `ml hypotheses`
+- `app/modules/eba_ml/application/worker_handlers.py` — _train stubbed; score_panel works
+- `app/modules/eba_ml/application/backfill.py` — stubbed NotImplementedError
+- `app/modules/eba_ml/application/service.py` — no TARGETS; _validate checks grid only
+
+## Deleted in T-1
+- `app/modules/eba_ml/domain/thresholds.py`
+- `app/modules/eba_ml/domain/lead_time.py`
+- `app/modules/eba_ml/application/pipeline.py` (deprecated shim)
+- `app/modules/eba_ml/application/training/comparators.py`
+- `app/modules/eba_ml/application/evaluation/h1b.py`
+- `app/modules/eba_ml/application/evaluation/h2.py`
 
 ## Test structure
-- `tests/unit/` — 111 tests, no DB, no real files; runs in CI.
+- `tests/unit/` — 83 tests, no DB, no real files; runs in CI.
 - `tests/integration/` — 117 tests, require `TEST_DATABASE_URL`; runs in CI.
 - `tests/data_processing/` — 5 tests with real EBA files; excluded from CI and default run.
 - `tests/conftest.py` — shared fixtures (`db`, `database_url`, `write_csv`).
@@ -55,12 +67,11 @@ Outputs are bit-identical to pre-refactor. 111 unit tests pass.
 - Do not commit or push unless explicitly requested.
 
 ## Verification
-- 111 unit tests pass: `pytest tests/unit/`
+- 83 unit tests pass: `pytest tests/unit/`
 - 117 integration tests pass: `pytest tests/integration/`
 - GitHub Actions runs `pytest tests/unit/ tests/integration/ -v`.
 
 ## Next step
-Stage ML-R-B: fix known bugs found during ML-R-A (do NOT fix in ML-R-A — record only).
-Known bugs to fix in ML-R-B:
-1. `comparator_metrics_and_predictions` builds `actual` without using `i` (uses all rows, ignores index).
-2. O(n²) pooled_metrics already fixed in ML-R-A via `key_to_index` dict.
+T-2: add E2/E3 label functions, R0/R1 baselines, F2 operating point, rewrite
+H1b (equal-volume recall) and H2 (lead time) for E2/E3 and R0/R1.
+HSH crosswalk: bank_id 24 and 185 need a crosswalk group (same institution).

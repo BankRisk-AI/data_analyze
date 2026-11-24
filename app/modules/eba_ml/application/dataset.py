@@ -1,3 +1,7 @@
+"""Panel feature matrix construction, fold splits, and dataset persistence.
+
+No target labels — labels are computed externally (T-2 adds E2/E3).
+"""
 from __future__ import annotations
 
 import hashlib
@@ -7,9 +11,8 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
-import yaml
 
-from app.modules.eba_ml.domain.constants import FEATURES, TARGETS
+from app.modules.eba_ml.domain.constants import FEATURES
 
 
 def _months(date_value: date, count: int) -> date:
@@ -18,64 +21,12 @@ def _months(date_value: date, count: int) -> date:
     return date(year, month + 1, date_value.day)
 
 
-def _approved_ids(conn) -> dict[str, set[int]]:
-    with conn.cursor() as cur:
-        cur.execute("SELECT bank_id,trim(lei) FROM bank")
-        bank_ids = {lei: bank_id for bank_id, lei in cur.fetchall()}
-    config = yaml.safe_load(Path("config/bank_crosswalk.yaml").read_text()) or {}
-    result: dict[str, set[int]] = {}
-    for group in config.get("crosswalks", []):
-        if group.get("status") != "approved":
-            continue
-        ids = {bank_ids[m["lei"]] for m in group.get("members", []) if m["lei"] in bank_ids}
-        for member in group.get("members", []):
-            result[member["lei"]] = ids
-    return result
-
-
-def _event_ids(conn) -> dict[str, set[int]]:
-    with conn.cursor() as cur:
-        cur.execute("SELECT bank_id,trim(lei) FROM bank")
-        bank_ids = {lei: bank_id for bank_id, lei in cur.fetchall()}
-    result = {lei: {bank_id} for lei, bank_id in bank_ids.items()}
-    result.update(_approved_ids(conn))
-    return result
-
-
-def _target_rows(rows: list[dict[str, Any]], event_ids: dict, events: list,
-                 event_start_months: int = 3) -> dict[str, set[tuple[int, date]]]:
-    by_bank: dict[int, list[dict[str, Any]]] = {}
-    for row in rows:
-        by_bank.setdefault(row["bank_id"], []).append(row)
-    result = {target: set() for target in TARGETS}
-    for bank_id, bank_rows in by_bank.items():
-        bank_rows.sort(key=lambda row: row["period"])
-        for row in bank_rows:
-            period = row["period"]
-            future = [x for x in bank_rows if period < x["period"] <= _months(period, 12)]
-            event = any(
-                bank_id in event_ids.get(e["bank_lei"].strip(), set())
-                and _months(period, event_start_months) <= date.fromisoformat(e["event_date"]) <= _months(period, 12)
-                for e in events
-            )
-            cet1 = row["cet1_ratio"]
-            t2 = cet1 is not None and cet1 >= 0.11 and any(
-                x["cet1_ratio"] is not None and x["cet1_ratio"] < 0.11 for x in future)
-            t3 = cet1 is not None and any(
-                x["cet1_ratio"] is not None and cet1 - x["cet1_ratio"] >= 0.03 for x in future)
-            t4 = any(x["roe_annualised"] is not None and x["npl_ratio"] is not None
-                     and x["roe_annualised"] < 0 and x["npl_ratio"] > 0.08 for x in future)
-            t4 = t4 and not (row["roe_annualised"] is not None and row["npl_ratio"] is not None
-                             and row["roe_annualised"] < 0 and row["npl_ratio"] > 0.08)
-            values = {"T1": event, "T2": t2, "T3": t3, "T4": t4,
-                      "T5": event or t2 or t3 or t4, "T5_noT1": t2 or t3 or t4}
-            for target, positive in values.items():
-                if positive:
-                    result[target].add((bank_id, period))
-    return result
-
-
 def build_dataset(conn, grid: str = "semiannual", robustness: bool = False) -> dict[str, Any]:
+    """Build the feature matrix and row index from the active panel (§3.5).
+
+    Returns rows, X (feature matrix), columns, panel_hash, grid, robustness.
+    Target labels are not included; pass y externally (T-2).
+    """
     if grid not in {"semiannual", "quarterly"}:
         raise ValueError("grid must be semiannual or quarterly")
     with conn.cursor() as cur:
@@ -122,37 +73,32 @@ def build_dataset(conn, grid: str = "semiannual", robustness: bool = False) -> d
             if not (robustness and feature in structural):
                 values.append(0.0 if value is not None else 1.0)
         matrix.append(values)
-    catalogue = yaml.safe_load(Path("config/events.yaml").read_text()) or {}
-    events = [e for e in catalogue.get("events", [])
-              if e.get("set") == "primary" and e.get("status") == "included"]
-    event_ids = _event_ids(conn)
-    targets = _target_rows(rows, event_ids, events, 3)
-    old_targets = _target_rows(rows, event_ids, events, 0)
     panel_hash = hashlib.sha256(json.dumps(
         [(r["bank_id"], r["period"].isoformat(), [r[f] for f in FEATURES]) for r in rows],
         default=str, sort_keys=True).encode()).hexdigest()
     return {"rows": rows, "X": np.asarray(matrix, dtype=float), "columns": columns,
-            "targets": targets, "panel_hash": panel_hash, "grid": grid,
-            "robustness": robustness,
-            "target_counts_before": {name: len(values) for name, values in old_targets.items()},
-            "target_counts_after": {name: len(values) for name, values in targets.items()}}
+            "panel_hash": panel_hash, "grid": grid, "robustness": robustness}
 
 
 def save_dataset(dataset: dict[str, Any], out_dir: str | Path = "data/ml") -> Path:
+    """Save feature matrix and manifest to out_dir (§3.5).
+
+    Does not save labels; labels are managed externally (T-2).
+    """
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
-    np.savez_compressed(out / f"dataset_{dataset['grid']}.npz", X=dataset["X"],
-                        **{target: np.asarray([(r["bank_id"], r["period"]) in values
-                                               for r in dataset["rows"]])
-                           for target, values in dataset["targets"].items()})
+    np.savez_compressed(out / f"dataset_{dataset['grid']}.npz", X=dataset["X"])
     manifest = {"grid": dataset["grid"], "panel_hash": dataset["panel_hash"],
-                "rows": len(dataset["rows"]), "columns": dataset["columns"],
-                "targets": {k: len(v) for k, v in dataset["targets"].items()}}
+                "rows": len(dataset["rows"]), "columns": dataset["columns"]}
     (out / f"manifest_{dataset['grid']}.json").write_text(json.dumps(manifest, indent=2, sort_keys=True))
     return out
 
 
 def folds(rows: list[dict[str, Any]]) -> list[tuple[np.ndarray, np.ndarray]]:
+    """Return (train_idx, test_idx) pairs with one-year embargo (Table 3.5).
+
+    Test years 2017-2021; training data ends at test_year - 2.
+    """
     result = []
     for test_year in (2017, 2018, 2019, 2020, 2021):
         train = np.asarray([i for i, row in enumerate(rows) if 2014 <= row["period"].year <= test_year - 2])

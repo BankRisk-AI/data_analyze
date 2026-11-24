@@ -9,13 +9,13 @@ from app.core.exceptions import BadRequestError, InvalidParameter, NotFoundError
 from app.modules.eba_ml.application import lifecycle
 from app.modules.eba_ml.domain.exceptions import ProtectedModelError
 from app.modules.eba_ml.domain.constants import (ALGORITHMS, FEATURE_SETS, GRIDS,
-                                                  MAX_BUDGET, TARGETS, THRESHOLDS)
+                                                  MAX_BUDGET, THRESHOLDS)
 from app.modules.eba_ml.infrastructure.artifacts import ArtifactStore
 
 
 def _validate(payload: dict[str, Any]) -> None:
-    if payload.get("target") not in TARGETS or payload.get("grid") not in GRIDS:
-        raise InvalidParameter("unknown target or grid")
+    if payload.get("grid") not in GRIDS:
+        raise InvalidParameter("unknown grid")
     if payload.get("feature_set", "robustness_v1") not in FEATURE_SETS:
         raise InvalidParameter("unknown feature set")
     if any(fold not in (2017, 2018, 2019, 2020, 2021) for fold in payload.get("folds", [2017, 2018, 2019, 2020, 2021])):
@@ -35,7 +35,7 @@ def _audit(cur, action: str, entity: str, entity_id: int, detail: dict | None = 
 
 
 def options() -> dict:
-    return {"targets": TARGETS, "grids": GRIDS, "feature_sets": FEATURE_SETS,
+    return {"grids": GRIDS, "feature_sets": FEATURE_SETS,
             "algorithms": ALGORITHMS, "thresholds": THRESHOLDS, "max_budget": MAX_BUDGET,
             "folds": [2017, 2018, 2019, 2020, 2021]}
 

@@ -79,6 +79,22 @@
   deprecated `pipeline.py` shim, CLI `__main__.py`, 23 unit tests in
   `tests/unit/test_ml_domain.py`, and `tests/golden_compare.py`. All new files
   ≤200 L, all new functions ≤50 L. 111 unit tests pass. Next = ML-R-B (bug fixes).
+- Stage T-0 (2026-11-24): counted instability events under thesis §3 definitions
+  (read-only, `scripts/count_events.py`). E1 (12-month breach of CET1<7%,
+  Tier1<8.5%, Total<10.5%) yielded too few qualifying events for ML use; E2
+  (4q CET1 decline, threshold TBD) and E3 (4q NPL increase, threshold TBD)
+  provide sufficient event counts. Decision: use E2/E3 as primary targets in T-2.
+- Stage T-1 (2026-11-24): removed all ML code made obsolete by thesis §3
+  alignment. Deleted: T1--T5 target construction, LOEO, Sarlin-based thresholds
+  in evaluation, v1.1/B4/B2 comparators, event table and event metrics in training,
+  SHAP inside training, `fit_final_model`, deprecated `pipeline.py` re-export,
+  `h1b.py`, `h2.py`. Stubbed: `backfill_protected_models`, `cmd_train`, `_train`
+  worker handler (all raise `NotImplementedError("T-2: ...")`). `score_panel`
+  job and all API routes still work. 83 unit tests pass (down from 111; 28
+  thresholds/lead-time tests removed). HSH confirmed: bank_id 24
+  (Hamburg Commercial Bank AG) = bank_id 185 (HSH Beteiligungs Management GmbH)
+  via previous_leis crosswalk. Next = T-2 (E2/E3 label functions, R0/R1
+  benchmarks, F2 operating point, H1b/H2 rewrites).
 
 - Stage 0: make the project installable and testable (2026-11-12)
 - Stage 1a: set-based staging-to-fact promotion (2026-11-12); measured

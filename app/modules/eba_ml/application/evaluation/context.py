@@ -1,6 +1,8 @@
 """Load artefact + dataset + index arrays once, shared across all H* functions (§3.6).
 
 Builds a RunContext from a results JSON directory and a live DB connection.
+Labels are loaded from the stored rows in the artefact (saved by train.py);
+T-2 will replace this with E2/E3 label functions once archived runs are superseded.
 """
 from __future__ import annotations
 
@@ -22,7 +24,7 @@ class RunContext:
     rows: list[dict]
     keys: np.ndarray          # string key per row: "bank_id:period"
     key_index: dict[str, int] # reverse lookup
-    target: str
+    target: str               # label name from artifact (metadata only in T-1)
     y: np.ndarray             # binary labels aligned to rows
     arrays: dict[str, np.ndarray]  # {model_name: OOF score array, nan where not OOF}
     valid: dict[str, np.ndarray]   # {model_name: bool mask of finite scores}
@@ -34,6 +36,7 @@ class RunContext:
 def load_run_context(run_dir: str | Path, conn) -> RunContext:
     """Load artefact JSON + rebuild dataset; compute all index arrays.
 
+    Labels are taken from the artefact's stored rows (field "label").
     Returns a RunContext ready for all hypothesis functions.
     """
     run = Path(run_dir)
@@ -45,10 +48,21 @@ def load_run_context(run_dir: str | Path, conn) -> RunContext:
     keys = np.asarray([f"{r['bank_id']}:{r['period'].isoformat()}" for r in rows])
     key_index = {key: i for i, key in enumerate(keys)}
 
-    target = artifact.get("target", "T5")
-    y = np.asarray(
-        [(r["bank_id"], r["period"]) in dataset["targets"][target] for r in rows],
-        dtype=int)
+    target = artifact.get("target", "unknown")
+
+    # Load labels from stored artefact rows
+    stored_rows = artifact.get("rows", [])
+    if stored_rows and "label" in stored_rows[0]:
+        label_lookup = {
+            (r["bank_id"], r["period"]): int(r["label"])
+            for r in stored_rows
+        }
+        y = np.asarray(
+            [label_lookup.get((row["bank_id"], row["period"].isoformat()), 0)
+             for row in rows], dtype=int)
+    else:
+        raise NotImplementedError(
+            "T-2: artefact has no stored row labels; E2/E3 label function required")
 
     predictions = artifact.get("predictions", {})
     arrays = {

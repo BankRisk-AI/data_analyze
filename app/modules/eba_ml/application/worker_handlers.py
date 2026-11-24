@@ -7,8 +7,7 @@ import numpy as np
 
 from app.core.database import connect
 from app.core.worker import Job, JobHandlerRegistry, ProgressReporter
-from app.modules.eba_ml.application.dataset import build_dataset
-from app.modules.eba_ml.application.pipeline import fit_final_model, train
+from app.modules.eba_ml.application.dataset import build_dataset, save_dataset
 from app.modules.eba_ml.domain.constants import MAX_BUDGET
 
 
@@ -41,7 +40,6 @@ def _build(job: Job, progress: ProgressReporter):
                                 config.get("feature_set") == "robustness_v1")
         path = Path("data/ml")
         path.mkdir(parents=True, exist_ok=True)
-        from app.modules.eba_ml.application.dataset import save_dataset
         save_dataset(dataset, path)
         progress("dataset built", 50)
         if _cancelled(conn, job.job_id):
@@ -52,34 +50,9 @@ def _build(job: Job, progress: ProgressReporter):
 
 
 def _train(job: Job, progress: ProgressReporter):
-    with connect(job.schema) as conn:
-        experiment = _experiment(conn, job)
-        if not experiment:
-            return
-        _, config, budget = experiment
-        if budget > MAX_BUDGET:
-            raise ValueError(f"budget exceeds configured maximum {MAX_BUDGET}")
-        with conn.cursor() as cur:
-            cur.execute("SELECT pg_try_advisory_lock(hashtextextended('eba_ml_training', 0))")
-            if not cur.fetchone()[0]:
-                raise RuntimeError("another ML training or tuning job is active")
-        if _cancelled(conn, job.job_id):
-            with conn.cursor() as cur:
-                cur.execute("SELECT pg_advisory_unlock(hashtextextended('eba_ml_training', 0))")
-            return
-        try:
-            result = train(conn, config.get("target", "T5"), config.get("grid", "semiannual"),
-                           robustness=config.get("feature_set") == "robustness_v1")
-        finally:
-            with conn.cursor() as cur:
-                cur.execute("SELECT pg_advisory_unlock(hashtextextended('eba_ml_training', 0))")
-        progress("model trained", 90)
-        if _cancelled(conn, job.job_id):
-            return
-        with conn.cursor() as cur:
-            cur.execute("""UPDATE ml_experiment SET status='completed',progress=100,metrics=%s
-                           WHERE experiment_id=%s""",
-                        (json.dumps({"pooled": result["pooled_metrics"]}), experiment[0]))
+    # T-2 will add E2/E3 label functions; train() requires y to be passed.
+    raise NotImplementedError(
+        "T-2: E2/E3 label function required before train_model job can run")
 
 
 def _evaluate(job: Job, progress: ProgressReporter):
@@ -155,7 +128,7 @@ def _score(job: Job, progress: ProgressReporter):
                     ON CONFLICT (model_id,bank_id,period_end,threshold_setting)
                     DO UPDATE SET probability=EXCLUDED.probability,alert=EXCLUDED.alert""",
                             (model_id, version_id, bank_id, period_end, setting,
-                             probability,                              probability >= threshold, json.dumps(shap_payload)))
+                             probability, probability >= threshold, json.dumps(shap_payload)))
             if index % 100 == 0:
                 progress("scoring panel", min(99, index * 100 // max(1, len(rows))))
         progress("panel scored", 99)

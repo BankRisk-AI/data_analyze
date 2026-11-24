@@ -10,39 +10,6 @@ import pytest
 from datetime import date
 
 
-# ---------------------------------------------------------------------------
-# domain/thresholds.py
-# ---------------------------------------------------------------------------
-from app.modules.eba_ml.domain.thresholds import (
-    matched_far_threshold, max_ur_threshold, compute_thresholds)
-
-
-def test_matched_far_threshold_basic():
-    scores = np.array([0.1, 0.2, 0.3, 0.4, 0.5])
-    # alert_share=0.4 -> quantile at 0.6 -> 0.3 (index 2 of 5)
-    result = matched_far_threshold(scores, 0.4)
-    assert abs(result - np.quantile(scores, 0.6)) < 1e-10
-
-
-def test_matched_far_threshold_clamps_at_zero():
-    scores = np.array([0.1, 0.5, 0.9])
-    # alert_share > 1.0 would give negative quantile; clamp to 0 -> min score
-    result = matched_far_threshold(scores, 1.5)
-    assert result == float(np.quantile(scores, 0.0))
-
-
-def test_max_ur_threshold_default_p90():
-    scores = np.linspace(0, 1, 101)
-    assert abs(max_ur_threshold(scores) - 0.9) < 1e-6
-
-
-def test_compute_thresholds_returns_both():
-    scores = np.array([0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0])
-    result = compute_thresholds(scores, 0.3)
-    assert "matched_far" in result
-    assert "max_ur_0_9" in result
-    assert result["max_ur_0_9"] == float(np.quantile(scores, 0.9))
-
 
 # ---------------------------------------------------------------------------
 # domain/families.py
@@ -180,12 +147,3 @@ def test_lead_time_quarters_no_ml_alert():
         [], [date(2019, 6, 30)])
     assert result["lead_quarters"] is None
 
-
-# ---------------------------------------------------------------------------
-# domain/lead_time.py — re-export check
-# ---------------------------------------------------------------------------
-from app.modules.eba_ml.domain.lead_time import lead_time_quarters as lt_via_lead_time
-
-
-def test_lead_time_reexport_is_same_function():
-    assert lt_via_lead_time is lead_time_quarters

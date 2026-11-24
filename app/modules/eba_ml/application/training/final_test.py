@@ -1,10 +1,8 @@
 """Final holdout test: train on <=2020, evaluate on 2022-2024 (§3.6, Table 3.6).
 
 Fits each model on the final training window and measures holdout performance.
-Also evaluates the comparator baselines on the same window.
 """
 from __future__ import annotations
-
 from typing import Any
 
 import numpy as np
@@ -18,20 +16,24 @@ def evaluate_final_test(
     y: np.ndarray,
     algorithm_names: tuple[str, ...],
     selected_params: dict[str, dict],
-    comparator_scores: dict[str, dict],
     space: str,
     train_end_year: int = 2020,
     test_start_year: int = 2022,
     test_end_year: int = 2024,
 ) -> tuple[dict, np.ndarray, np.ndarray]:
-    """Fit on [start, train_end_year], evaluate on [test_start, test_end] (§3.6).
+    """Fit models on [start, train_end_year] and evaluate on [test_start, test_end].
 
     Returns (final_test_metrics, final_train_idx, final_test_idx).
+    final_test_metrics: {name: {pr_auc, roc_auc, brier}}.
     """
     rows = dataset["rows"]
-    train_idx = np.asarray([i for i, r in enumerate(rows) if r["period"].year <= train_end_year])
+    train_idx = np.asarray([
+        i for i, row in enumerate(rows) if row["period"].year <= train_end_year
+    ])
     test_idx = np.asarray([
-        i for i, r in enumerate(rows) if test_start_year <= r["period"].year <= test_end_year])
+        i for i, row in enumerate(rows)
+        if test_start_year <= row["period"].year <= test_end_year
+    ])
 
     positives = int(y[train_idx].sum())
     weight = (len(train_idx) - positives) / positives if positives else 1.0
@@ -47,16 +49,5 @@ def evaluate_final_test(
                 "roc_auc": float(roc_auc_score(y[test_idx], probability)),
                 "brier": float(brier_score_loss(y[test_idx], probability)),
             }
-
-    for name, scores in comparator_scores.items():
-        values = np.asarray([
-            scores[(dataset["rows"][i]["bank_id"], dataset["rows"][i]["period"])]
-            for i in test_idx
-        ])
-        final_test[name] = {
-            "pr_auc": float(average_precision_score(y[test_idx], values)),
-            "roc_auc": float(roc_auc_score(y[test_idx], values)),
-            "brier": None,
-        }
 
     return final_test, train_idx, test_idx
