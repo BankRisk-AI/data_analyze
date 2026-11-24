@@ -1,0 +1,111 @@
+# config/ml.yaml — all adjustable ML parameters
+# Edit this file to change search spaces, budget, folds, etc.
+
+# Random seed for all numpy/random calls (models.py SEED)
+seed: 20261121
+
+# Total hyperparameter configurations sampled per model per run (Table 3.5)
+search_budget: 60
+
+# Wall-clock hour limit for the full train run (default)
+wall_clock_hours: 2.0
+
+# Cross-validation folds: each test_year forms one fold (embargo = test_year - 2)
+folds:
+  test_years: [2017, 2018, 2019, 2020, 2021]
+  train_start: 2014
+
+# Final holdout test window (years inclusive)
+final_test:
+  train_end: 2020
+  test_start: 2022
+  test_end: 2024
+
+# OOB n_estimators candidates tested for RF (table35 space only)
+oob_n_estimators: [50, 100, 150]
+
+# Event window: months before event (start, end) — e.g. 12 months before to 3 months before
+event_window_months: [-12, -3]
+
+# Bootstrap replicates for CI computation (full run)
+bootstrap_replicates: 2000
+
+# Bootstrap replicates in quick mode
+bootstrap_replicates_quick: 20
+
+# H3 search budget in full mode (number of configs to try for levels-only model)
+h3_budget: 60
+
+# H3 search budget in quick mode
+h3_budget_quick: 2
+
+# Max LOEO events in quick mode (None = unlimited in full mode)
+loeo_limit_quick: 1
+
+# SHA-256 of the eu_eba v1.1 alert profile used as comparator
+# Update when the reference profile is regenerated in eba_public_analysis
+comparator_profile_sha: "28a28fa0f89da8435abdb0d6042a69cb2bff421c456926374dd202e0089f7e40"
+
+# SHAP feature families (Table 3.x — base feature name -> family)
+shap_families:
+  Capital: [cet1_ratio, tier1_ratio, total_capital_ratio, leverage_ratio]
+  Asset_quality: [npl_ratio, stage2_share]
+  Earnings: [roe_annualised]
+  Concentration: [nace_hhi, sovereign_hhi]
+  Growth: [loan_growth_yoy]
+  Liquidity: []
+
+# Sensitivity grouping: maps sub-families into 4 broad groups
+shap_sensitivity_groups:
+  Capital: [Capital]
+  Earnings: [Earnings]
+  Asset_quality: [Asset_quality, Concentration, Growth]
+  Liquidity: [Liquidity]
+
+# Search spaces — table35 (Table 3.5) and extended
+search_spaces:
+  table35:
+    LR:
+      configs:
+        - {penalty: l1, solver: liblinear, C: 0.01}
+        - {penalty: l1, solver: liblinear, C: 0.1}
+        - {penalty: l1, solver: liblinear, C: 1}
+        - {penalty: l1, solver: liblinear, C: 10}
+        - {penalty: l1, solver: liblinear, C: 100}
+        - {penalty: l2, solver: liblinear, C: 0.01}
+        - {penalty: l2, solver: liblinear, C: 0.1}
+        - {penalty: l2, solver: liblinear, C: 1}
+        - {penalty: l2, solver: liblinear, C: 10}
+        - {penalty: l2, solver: liblinear, C: 100}
+    RF:
+      random_grid:
+        max_depth: [null, 5, 10, 15, 20]
+        min_samples_leaf: [1, 2, 5, 10]
+        max_features: [sqrt, log2, 0.5]
+    XGB:
+      random_grid:
+        n_estimators: [100, 300, 500]
+        max_depth: [3, 4, 5, 6, 8]
+        learning_rate: [0.01, 0.05, 0.1, 0.2]
+        subsample: [0.7, 0.8, 0.9, 1.0]
+        colsample_bytree: [0.7, 0.8, 0.9, 1.0]
+        reg_lambda: [0.1, 1, 5, 10]
+  extended:
+    LR:
+      random_grid:
+        penalty: [l1, l2]
+        solver: [liblinear]
+        C: [0.01, 0.03, 0.1, 0.3, 1, 3, 10, 30, 100]
+    RF:
+      random_grid:
+        max_depth: [null, 3, 5, 8, 12, 20]
+        min_samples_leaf: [1, 2, 4, 8, 12]
+        max_features: [sqrt, log2, 0.5, 1.0]
+    XGB:
+      random_grid:
+        n_estimators: [100]
+        max_depth: [2, 3, 4, 5]
+        learning_rate: [0.02, 0.05, 0.1, 0.2]
+        min_child_weight: [1, 3, 6]
+        subsample: [0.7, 0.85, 1.0]
+        colsample_bytree: [0.7, 0.85, 1.0]

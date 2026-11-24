@@ -72,6 +72,13 @@
   budget=2, LOEO=1). Re-ran both full hypotheses. Next = Stage 5b-R3
   (sensitivities: original run, T5_noT1, quarterly; OOB curve with
   Brier/log-loss).
+- Stage ML-R-A (2026-11-24): pure structural refactor of `pipeline.py` —
+  bit-identical outputs guaranteed. Created `config/ml.yaml` (111 L),
+  domain files `thresholds.py`/`lead_time.py`/`families.py`, `application/io.py`,
+  `application/training/` (10 files), `application/evaluation/` (9 files),
+  deprecated `pipeline.py` shim, CLI `__main__.py`, 23 unit tests in
+  `tests/unit/test_ml_domain.py`, and `tests/golden_compare.py`. All new files
+  ≤200 L, all new functions ≤50 L. 111 unit tests pass. Next = ML-R-B (bug fixes).
 
 - Stage 0: make the project installable and testable (2026-11-12)
 - Stage 1a: set-based staging-to-fact promotion (2026-11-12); measured
