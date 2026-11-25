@@ -23,6 +23,48 @@ SCHEMA = "public"
 
 HEADER = "LEI_Code,NSA,Period,Item,Label,Amount,footnote\n"
 
+_PROD_DB_NAME = "eba"
+
+
+# ---------------------------------------------------------
+# Session-start guard: redirect DATABASE_URL → TEST_DATABASE_URL
+# Runs before any test module is imported.
+# ---------------------------------------------------------
+
+def pytest_configure(config):
+    """Hard guard: redirect DATABASE_URL to TEST_DATABASE_URL for the whole session.
+
+    Aborts if TEST_DATABASE_URL is missing, cannot be contacted, its
+    database name is not 'eba_test', or the resolved current_database()
+    matches the prod name.
+    """
+    if not TEST_DATABASE_URL:
+        pytest.exit(
+            "SAFETY ABORT: TEST_DATABASE_URL is not set. "
+            "Tests must not run without a dedicated test database.",
+            returncode=2,
+        )
+    try:
+        conn = psycopg2.connect(TEST_DATABASE_URL)
+        conn.autocommit = True
+        with conn.cursor() as cur:
+            cur.execute("SELECT current_database()")
+            db_name = cur.fetchone()[0]
+        conn.close()
+    except Exception as exc:
+        pytest.exit(
+            f"SAFETY ABORT: Cannot connect to TEST_DATABASE_URL: {exc}",
+            returncode=2,
+        )
+    if db_name != "eba_test":
+        pytest.exit(
+            f"SAFETY ABORT: TEST_DATABASE_URL resolves to '{db_name}', not 'eba_test'. "
+            "Tests must not run against a non-test database.",
+            returncode=2,
+        )
+    # Unconditionally redirect DATABASE_URL for the whole process
+    os.environ["DATABASE_URL"] = TEST_DATABASE_URL
+
 
 # ---------------------------------------------------------
 # Database lifecycle

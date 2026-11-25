@@ -38,6 +38,8 @@ def refit_folds(
     for fold_number, (train_idx, test_idx) in enumerate(folds(dataset["rows"]), 1):
         if not len(test_idx) or not len(train_idx):
             continue
+        if len(np.unique(y[train_idx])) < 2 or len(np.unique(y[test_idx])) < 2:
+            continue
         for name in algorithm_names:
             if time.monotonic() - wall_clock_started > wall_clock_hours * 3600:
                 raise TimeoutError("ML search exceeded wall-clock limit")

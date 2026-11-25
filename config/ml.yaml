@@ -46,13 +46,46 @@ loeo_limit_quick: 1
 # Update when the reference profile is regenerated in eba_public_analysis
 comparator_profile_sha: "28a28fa0f89da8435abdb0d6042a69cb2bff421c456926374dd202e0089f7e40"
 
+# Target label (options: E1, E2, E3, E2_or_E3)
+label: "E2_or_E3"
+
+# Tail quantile for E2/E3 threshold (computed on training rows up to train_cutoff_year=2020)
+tail_quantile: 0.95
+
+# Sensitivity quantiles for threshold robustness checks
+sensitivity_quantiles: [0.975]
+
+# Prediction horizon in months (E1: horizon breach; E2/E3: 4q change evaluability)
+horizon_months: 12
+
+# NPL series break date — E3 changes spanning this date are not evaluable
+npl_series_break: "2020-06-30"
+
+# R1 margin grid in percentage points (0.0 to 10.0, step 0.5)
+r1_margin_grid_pp: [0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0, 5.5, 6.0, 6.5, 7.0, 7.5, 8.0, 8.5, 9.0, 9.5, 10.0, 10.5, 11.0, 11.5, 12.0, 12.5, 13.0, 13.5, 14.0, 14.5, 15.0, 15.5, 16.0, 16.5, 17.0, 17.5, 18.0, 18.5, 19.0, 19.5, 20.0]
+
+# R0 alert levels (fraction, not percentage points)
+r0_levels:
+  cet1: 0.07
+  tier1: 0.085
+  total_capital: 0.105
+
+# Operating point: "f2_on_validation_oof" = threshold maximising F2 on pooled OOF (2017-2021)
+operating_point: "f2_on_validation_oof"
+
+# Display-only alert mode: share of R0-compliant banks flagged per period (top_10pct_per_period)
+top_alert_share: 0.10
+
+# Whether to query v1.1 red alerts for descriptive H1b comparison
+descriptive_v11: true
+
 # SHAP feature families (Table 3.x — base feature name -> family)
 shap_families:
   Capital: [cet1_ratio, tier1_ratio, total_capital_ratio, leverage_ratio]
   Asset_quality: [npl_ratio, stage2_share]
   Earnings: [roe_annualised]
   Concentration: [nace_hhi, sovereign_hhi]
-  Growth: [loan_growth_yoy]
+  Growth: [loan_growth_yoy, loan_growth_qoq]
   Liquidity: []
 
 # Sensitivity grouping: maps sub-families into 4 broad groups

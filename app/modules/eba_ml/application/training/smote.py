@@ -30,6 +30,10 @@ def smote_fold_comparison(
 
     if len(np.unique(y_train)) < 2:
         return None
+    n_pos = int((y_train == 1).sum())
+    if n_pos < 6:
+        # SMOTE k_neighbors=5 requires at least 6 positives in the minority class
+        return None
     imputer = SimpleImputer(strategy="median")
     x_over, y_over = SMOTE(random_state=seed).fit_resample(
         imputer.fit_transform(X_train), y_train

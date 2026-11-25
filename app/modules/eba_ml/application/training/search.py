@@ -40,6 +40,8 @@ def run_fold_search(
         for train_idx, test_idx in folds(dataset["rows"]):
             if not len(test_idx) or not len(train_idx):
                 continue
+            if len(np.unique(y[train_idx])) < 2 or len(np.unique(y[test_idx])) < 2:
+                continue
             positives = int(y[train_idx].sum())
             weight = (len(train_idx) - positives) / positives if positives else 1.0
             candidate = model_factory(algorithm, params, weight, space=space)

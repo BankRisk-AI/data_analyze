@@ -1802,7 +1802,8 @@ paths:
           description: Successful Response
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/MLOptions'
   /api/ml/datasets:
     get:
       tags:
@@ -1832,7 +1833,8 @@ paths:
           description: Successful Response
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/PagedDatasets'
         '422':
           description: Invalid request or parameter
           content:
@@ -1878,7 +1880,8 @@ paths:
           description: Successful Response
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/DatasetRow'
         '404':
           description: Not found
           content:
@@ -1918,7 +1921,8 @@ paths:
           description: Successful Response
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/PagedExperiments'
         '422':
           description: Invalid request or parameter
           content:
@@ -1964,7 +1968,8 @@ paths:
           description: Successful Response
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ExperimentRow'
         '404':
           description: Not found
           content:
@@ -2046,7 +2051,8 @@ paths:
           description: Successful Response
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/PagedModels'
         '422':
           description: Invalid request or parameter
           content:
@@ -2093,7 +2099,8 @@ paths:
           description: Successful Response
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ModelRow'
         '404':
           description: Not found
           content:
@@ -2242,12 +2249,21 @@ paths:
           type: boolean
           default: true
           title: Champion Only
+      - name: threshold_setting
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Threshold Setting
       responses:
         '200':
           description: Successful Response
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/PagedPredictions'
         '422':
           description: Invalid request or parameter
           content:
@@ -2754,6 +2770,32 @@ components:
       - target
       - grid
       title: DatasetRequest
+    DatasetRow:
+      properties:
+        dataset_id:
+          type: integer
+          title: Dataset Id
+        target:
+          type: string
+          title: Target
+        grid:
+          type: string
+          title: Grid
+        feature_set:
+          type: string
+          title: Feature Set
+        status:
+          type: string
+          title: Status
+      additionalProperties: true
+      type: object
+      required:
+      - dataset_id
+      - target
+      - grid
+      - feature_set
+      - status
+      title: DatasetRow
     DatasetSummary:
       properties:
         file_id:
@@ -2830,6 +2872,15 @@ components:
           type: string
           title: Content Hash
           default: '0000000000000000000000000000000000000000000000000000000000000000'
+        label:
+          type: string
+          title: Label
+          default: E2_or_E3
+        tail_quantile:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Tail Quantile
         algorithms:
           items:
             type: string
@@ -2861,6 +2912,24 @@ components:
       - target
       - grid
       title: ExperimentRequest
+    ExperimentRow:
+      properties:
+        experiment_id:
+          type: integer
+          title: Experiment Id
+        dataset_id:
+          type: integer
+          title: Dataset Id
+        status:
+          type: string
+          title: Status
+      additionalProperties: true
+      type: object
+      required:
+      - experiment_id
+      - dataset_id
+      - status
+      title: ExperimentRow
     FeatureDefinition:
       properties:
         name:
@@ -3609,6 +3678,61 @@ components:
       - status
       - created
       title: LoadQueued
+    MLOptions:
+      properties:
+        grids:
+          items:
+            type: string
+          type: array
+          title: Grids
+        feature_sets:
+          items:
+            type: string
+          type: array
+          title: Feature Sets
+        algorithms:
+          items:
+            type: string
+          type: array
+          title: Algorithms
+        thresholds:
+          items:
+            type: string
+          type: array
+          title: Thresholds
+        max_budget:
+          type: integer
+          title: Max Budget
+        folds:
+          items:
+            type: integer
+          type: array
+          title: Folds
+        labels:
+          items:
+            type: string
+          type: array
+          title: Labels
+        tail_quantiles:
+          items:
+            type: number
+          type: array
+          title: Tail Quantiles
+        top_alert_share:
+          type: number
+          title: Top Alert Share
+      type: object
+      required:
+      - grids
+      - feature_sets
+      - algorithms
+      - thresholds
+      - max_budget
+      - folds
+      - labels
+      - tail_quantiles
+      - top_alert_share
+      title: MLOptions
     Meta:
       properties:
         import_statuses:
@@ -3646,6 +3770,32 @@ components:
       - file_types
       - problem_types
       title: Meta
+    ModelRow:
+      properties:
+        model_id:
+          type: integer
+          title: Model Id
+        experiment_id:
+          type: integer
+          title: Experiment Id
+        algorithm:
+          type: string
+          title: Algorithm
+        status:
+          type: string
+          title: Status
+        protected:
+          type: boolean
+          title: Protected
+      additionalProperties: true
+      type: object
+      required:
+      - model_id
+      - experiment_id
+      - algorithm
+      - status
+      - protected
+      title: ModelRow
     NullAnalysis:
       properties:
         file_id:
@@ -3709,6 +3859,94 @@ components:
       - nulls
       - null_pct
       title: NullGroup
+    PagedDatasets:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/DatasetRow'
+          type: array
+          title: Items
+        page:
+          type: integer
+          title: Page
+        page_size:
+          type: integer
+          title: Page Size
+        total:
+          type: integer
+          title: Total
+      type: object
+      required:
+      - items
+      - page
+      - page_size
+      - total
+      title: PagedDatasets
+    PagedExperiments:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/ExperimentRow'
+          type: array
+          title: Items
+        page:
+          type: integer
+          title: Page
+        page_size:
+          type: integer
+          title: Page Size
+        total:
+          type: integer
+          title: Total
+      type: object
+      required:
+      - items
+      - page
+      - page_size
+      - total
+      title: PagedExperiments
+    PagedModels:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/ModelRow'
+          type: array
+          title: Items
+        page:
+          type: integer
+          title: Page
+        page_size:
+          type: integer
+          title: Page Size
+        total:
+          type: integer
+          title: Total
+      type: object
+      required:
+      - items
+      - page
+      - page_size
+      - total
+      title: PagedModels
+    PagedPredictions:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/PredictionRow'
+          type: array
+          title: Items
+        page:
+          type: integer
+          title: Page
+        page_size:
+          type: integer
+          title: Page Size
+      type: object
+      required:
+      - items
+      - page
+      - page_size
+      title: PagedPredictions
     PairModel:
       properties:
         year:
@@ -3807,6 +4045,35 @@ components:
       - banks
       - rows
       title: PeriodInfo
+    PredictionRow:
+      properties:
+        model_id:
+          type: integer
+          title: Model Id
+        bank_id:
+          type: string
+          title: Bank Id
+        period_end:
+          title: Period End
+        threshold_setting:
+          type: string
+          title: Threshold Setting
+        probability:
+          type: number
+          title: Probability
+        alert:
+          type: boolean
+          title: Alert
+      additionalProperties: true
+      type: object
+      required:
+      - model_id
+      - bank_id
+      - period_end
+      - threshold_setting
+      - probability
+      - alert
+      title: PredictionRow
     Preview:
       properties:
         version_id:

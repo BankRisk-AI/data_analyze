@@ -101,7 +101,16 @@ def folds(rows: list[dict[str, Any]]) -> list[tuple[np.ndarray, np.ndarray]]:
     """
     result = []
     for test_year in (2017, 2018, 2019, 2020, 2021):
-        train = np.asarray([i for i, row in enumerate(rows) if 2014 <= row["period"].year <= test_year - 2])
-        test = np.asarray([i for i, row in enumerate(rows) if row["period"].year == test_year])
+        train = np.asarray(
+            [i for i, row in enumerate(rows) if 2014 <= row["period"].year <= test_year - 2],
+            dtype=int)
+        test = np.asarray(
+            [i for i, row in enumerate(rows) if row["period"].year == test_year],
+            dtype=int)
+        if len(train) == 0 or len(test) == 0:
+            import logging
+            logging.getLogger(__name__).warning(
+                "fold year=%d has empty split (train=%d test=%d) — fold skipped",
+                test_year, len(train), len(test))
         result.append((train, test))
     return result

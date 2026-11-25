@@ -36,6 +36,7 @@ def write_json(path: Path, data: object) -> None:
     try:
         with os.fdopen(fd, "w") as f:
             json.dump(data, f, indent=2, sort_keys=True)
+        os.chmod(tmp, 0o644)
         os.replace(tmp, path)
     except Exception:
         os.unlink(tmp)

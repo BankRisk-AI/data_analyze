@@ -1,7 +1,9 @@
 GRIDS = ("semiannual", "quarterly")
 ALGORITHMS = ("LR", "RF", "XGB")
 FEATURE_SETS = ("robustness_v1", "full_v1")
-THRESHOLDS = ("matched_far", "max_ur_0_9")
+THRESHOLDS = ("operating_point_f2", "top_10pct_per_period")
+LABEL_OPTIONS = ("E1", "E2", "E3", "E2_or_E3")
+TAIL_QUANTILES = (0.90, 0.95, 0.975, 0.99)
 MAX_BUDGET = 60
 
 FEATURES = (

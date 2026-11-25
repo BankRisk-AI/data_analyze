@@ -160,8 +160,13 @@ and fold definitions are reused, not reimplemented.
 All six decisions are resolved: joblib plus native XGBoost JSON; restricted
 hard delete with exact-name confirmation and prediction cascade; one active
 training/tuning job per installation; local single-user visibility until
-authentication exists; only `matched_far` and `max_ur_0_9`; and promotion of any
-validated archived model for rollback.
+authentication exists; single `operating_point_f2` threshold (frozen F2-maximising
+threshold from T3_primary OOF; R0-breach rows scored separately as `r0_breach`);
+and promotion of any validated archived model for rollback.
+
+**T-4 (2026-11-25)**: thesis-T3-primary-lr is the champion for (E2_or_E3,
+semiannual) with operating_point=0.4916. Old stage5c models (target T5, pre-thesis
+definition) are validated+protected with note "superseded by thesis-T3-primary".
 
 ### Provenance
 

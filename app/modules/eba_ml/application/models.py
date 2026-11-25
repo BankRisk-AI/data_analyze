@@ -20,7 +20,8 @@ def model_factory(algorithm=None, params=None, pos_weight=None, space="extended"
                    ("scale", StandardScaler()),
                    ("model", LogisticRegression(max_iter=2000,
                     class_weight="balanced", solver=params.get("solver", "liblinear"),
-                    penalty=params.get("penalty", "l2"), C=params.get("C", 1.0)))])
+                    penalty=params.get("penalty", "l2"), C=params.get("C", 1.0),
+                    random_state=SEED))])
     rf = RandomForestClassifier(n_estimators=params.get("n_estimators", 150),
                                 class_weight="balanced", random_state=SEED, n_jobs=1,
                                 max_depth=params.get("max_depth"),

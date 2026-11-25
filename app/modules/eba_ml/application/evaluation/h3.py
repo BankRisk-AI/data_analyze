@@ -23,24 +23,29 @@ def compute_h3(ctx: RunContext, seed: int, replicates: int, h3_budget: int) -> d
     _rank or _change12m are excluded for the levels-only model.
     """
     dataset = ctx.dataset
-    rows = ctx.rows
-    y = ctx.y
+    # Filter to prediction sample only (y=-1 means excluded)
+    valid_mask = ctx.y >= 0
+    rows = [ctx.rows[i] for i in np.flatnonzero(valid_mask)]
+    y = ctx.y[valid_mask]
+    keys = ctx.keys[valid_mask]
     selected = ctx.selected
 
     level_columns = [i for i, col in enumerate(dataset["columns"])
                      if "_rank" not in col and "_change12m" not in col]
-    X_level = dataset["X"][:, level_columns]
+    X_level = dataset["X"][valid_mask][:, level_columns]
 
     h3_configs = _search_configs(selected, ctx.artifact.get("space", "table35"))[:h3_budget]
     best_level_params, best_level_mean_pr = _search_level_configs(
         X_level, y, rows, selected, h3_configs, ctx.artifact.get("space", "table35"))
 
     level_pred, level_fold = _refit_level_folds(
-        X_level, y, rows, ctx.keys, selected, best_level_params,
+        X_level, y, rows, keys, selected, best_level_params,
         ctx.artifact.get("space", "table35"))
 
-    lp = np.asarray([level_pred.get(key, np.nan) for key in ctx.keys])
-    h3mask = np.isfinite(ctx.arrays[selected]) & np.isfinite(lp)
+    # Compare with main model's OOF scores (filtered to same prediction sample)
+    main_scores = ctx.arrays[selected][valid_mask]
+    lp = np.asarray([level_pred.get(key, np.nan) for key in keys])
+    h3mask = np.isfinite(main_scores) & np.isfinite(lp)
 
     primary_fold = {item["fold"]: item["pr_auc"]
                     for item in ctx.artifact.get("fold_metrics", [])
@@ -49,7 +54,7 @@ def compute_h3(ctx: RunContext, seed: int, replicates: int, h3_budget: int) -> d
     return {
         "level_params": best_level_params,
         "dPR": _hyp_bootstrap(
-            y[h3mask], ctx.arrays[selected][h3mask], lp[h3mask],
+            y[h3mask], main_scores[h3mask], lp[h3mask],
             np.asarray([rows[i]["bank_id"] for i in np.flatnonzero(h3mask)]),
             "pr", seed, replicates),
         "fold_wilcoxon": _hyp_wilcoxon([
@@ -89,6 +94,8 @@ def _refit_level_folds(
     level_pred: dict[str, float] = {}
     level_fold: dict[int, float] = {}
     for fold_no, (train_idx, test_idx) in enumerate(folds(rows), 1):
+        if len(test_idx) == 0 or not y[test_idx].any():
+            continue
         w = (len(train_idx) - y[train_idx].sum()) / max(1, y[train_idx].sum())
         m = model_factory(selected, best_params, w, space=space)
         m.fit(X_level[train_idx], y[train_idx])

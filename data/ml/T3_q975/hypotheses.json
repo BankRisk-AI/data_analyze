@@ -1,0 +1,213 @@
+{
+  "H1a": {
+    "RF_vs_LR": {
+      "dPR": {
+        "ci95": [
+          -0.15539098399463447,
+          0.04009215134225798
+        ],
+        "estimate": -0.034764637921247024,
+        "p_holm": 1.0,
+        "p_one_sided": 0.8480759620189905
+      },
+      "dROC": {
+        "ci95": [
+          -0.12413407019872447,
+          0.07711285744960178
+        ],
+        "estimate": -0.033094519859225735,
+        "p_one_sided": 0.7451274362818591
+      },
+      "fold_wilcoxon": {
+        "n": 5,
+        "p": 0.59375,
+        "status": "exact"
+      }
+    },
+    "XGB_vs_LR": {
+      "dPR": {
+        "ci95": [
+          -0.17402813798625485,
+          0.08483381287424262
+        ],
+        "estimate": -0.03699616938289699,
+        "p_holm": 1.0,
+        "p_one_sided": 0.7936031984007996
+      },
+      "dROC": {
+        "ci95": [
+          -0.1685688952410094,
+          0.13134449477351914
+        ],
+        "estimate": -0.026080945198592276,
+        "p_one_sided": 0.6451774112943528
+      },
+      "fold_wilcoxon": {
+        "n": 5,
+        "p": 0.6875,
+        "status": "exact"
+      }
+    }
+  },
+  "H1b": {
+    "ci95": [
+      0.0,
+      0.25
+    ],
+    "fixed_share_sensitivity": {
+      "r1_alert_share_pct": 2.0220588235294117,
+      "share_10pct": {
+        "ci95": [
+          0.04994047619047618,
+          0.764754901960784
+        ],
+        "k_alerts": 54,
+        "ml_recall": 0.4090909090909091,
+        "r1_recall": 0.045454545454545456,
+        "recall_diff": 0.36363636363636365
+      },
+      "share_20pct": {
+        "ci95": [
+          -0.13043478260869562,
+          0.8
+        ],
+        "k_alerts": 109,
+        "ml_recall": 0.5,
+        "r1_recall": 0.18181818181818182,
+        "recall_diff": 0.3181818181818182
+      }
+    },
+    "ml_recall": 0.09090909090909091,
+    "n_positives": 22,
+    "n_rows": 544,
+    "r1_recall": 0.0,
+    "recall_diff": 0.09090909090909091,
+    "sensitivity_oof": {
+      "ci95": [
+        0.07692307692307693,
+        0.44119357045143626
+      ],
+      "ml_recall": 0.3076923076923077,
+      "n_positives": 39,
+      "n_rows": 1059,
+      "r1_recall": 0.05128205128205128,
+      "recall_diff": 0.25641025641025644,
+      "supported": true,
+      "window": "validation_oof"
+    },
+    "supported": false,
+    "v1_1_descriptive": {
+      "n_alerts": 28,
+      "note": "descriptive only; v1.1 alert volume not matched to ML",
+      "recall": 0.13636363636363635
+    },
+    "window": "final_test"
+  },
+  "H2": {
+    "median_L_quarters": null,
+    "n_breach_banks": 8,
+    "n_evaluated": 0,
+    "n_right_censored": 182,
+    "note": "Operating point fitted on OOF (2017-2021); breach periods within that window are flagged in per_bank.op_fitted_includes_breach_period",
+    "operating_point_threshold": 0.5300103813549554,
+    "per_bank": [
+      {
+        "bank_id": 19,
+        "status": "no_alert_before_breach",
+        "t_B": "2018-12-31"
+      },
+      {
+        "bank_id": 43,
+        "status": "no_pre_breach_predictions",
+        "t_B": "2014-12-31"
+      },
+      {
+        "bank_id": 68,
+        "status": "no_pre_breach_predictions",
+        "t_B": "2016-12-31"
+      },
+      {
+        "bank_id": 71,
+        "status": "no_pre_breach_predictions",
+        "t_B": "2014-12-31"
+      },
+      {
+        "bank_id": 76,
+        "status": "no_pre_breach_predictions",
+        "t_B": "2015-06-30"
+      },
+      {
+        "bank_id": 94,
+        "status": "no_pre_breach_predictions",
+        "t_B": "2016-12-31"
+      },
+      {
+        "bank_id": 113,
+        "status": "no_pre_breach_predictions",
+        "t_B": "2015-12-31"
+      },
+      {
+        "bank_id": 185,
+        "status": "no_pre_breach_predictions",
+        "t_B": "2016-12-31"
+      }
+    ],
+    "right_censored_proportion": 0.9578947368421052,
+    "wilcoxon": {
+      "n": 0,
+      "p": null,
+      "status": "exploratory"
+    }
+  },
+  "H3": {
+    "dPR": {
+      "ci95": [
+        -0.017510420791789667,
+        0.17037295841067898
+      ],
+      "estimate": 0.04729639441782417,
+      "p_one_sided": 0.07296351824087956
+    },
+    "fold_wilcoxon": {
+      "n": 5,
+      "p": 0.59375,
+      "status": "exact"
+    },
+    "level_params": {
+      "C": 0.01,
+      "penalty": "l2",
+      "solver": "liblinear"
+    }
+  },
+  "H4": {
+    "status": "pending - Stage 7 (BNM pilot)"
+  },
+  "H5": {
+    "capital_earnings_rank_1_2": false,
+    "indicator_columns": "dropped from family sums (not assigned to any base feature)",
+    "lr_nonzero_per_fold": [
+      2,
+      2,
+      3,
+      4,
+      4
+    ],
+    "n_explained_rows": 1059,
+    "primary": {
+      "Asset_quality": 0.00784584543997658,
+      "Capital": 0.0038546223055720024,
+      "Concentration": 0.0,
+      "Earnings": 0.017793928942651423,
+      "Growth": 0.0
+    },
+    "sensitivity": {
+      "Asset_quality": 0.00784584543997658,
+      "Capital": 0.0038546223055720024,
+      "Earnings": 0.017793928942651423,
+      "Liquidity": 0
+    },
+    "status": "computed"
+  },
+  "run": "data/ml/T3_q975/",
+  "selected_model": "LR"
+}

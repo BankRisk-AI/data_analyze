@@ -9,7 +9,8 @@ from app.core.exceptions import BadRequestError, InvalidParameter, NotFoundError
 from app.modules.eba_ml.application import lifecycle
 from app.modules.eba_ml.domain.exceptions import ProtectedModelError
 from app.modules.eba_ml.domain.constants import (ALGORITHMS, FEATURE_SETS, GRIDS,
-                                                  MAX_BUDGET, THRESHOLDS)
+                                                  LABEL_OPTIONS, MAX_BUDGET,
+                                                  TAIL_QUANTILES, THRESHOLDS)
 from app.modules.eba_ml.infrastructure.artifacts import ArtifactStore
 
 
@@ -27,6 +28,11 @@ def _validate(payload: dict[str, Any]) -> None:
         raise InvalidParameter(f"budget must be <= {MAX_BUDGET}")
     if any(value not in THRESHOLDS for value in payload.get("thresholds", THRESHOLDS)):
         raise InvalidParameter("unknown threshold setting")
+    if "label" in payload and payload["label"] not in LABEL_OPTIONS:
+        raise InvalidParameter(f"unknown label; allowed: {LABEL_OPTIONS}")
+    tq = payload.get("tail_quantile")
+    if tq is not None and tq not in TAIL_QUANTILES:
+        raise InvalidParameter(f"unknown tail_quantile; allowed: {TAIL_QUANTILES}")
 
 
 def _audit(cur, action: str, entity: str, entity_id: int, detail: dict | None = None):
@@ -35,9 +41,13 @@ def _audit(cur, action: str, entity: str, entity_id: int, detail: dict | None = 
 
 
 def options() -> dict:
+    import yaml
+    cfg = yaml.safe_load(open("config/ml.yaml").read())
     return {"grids": GRIDS, "feature_sets": FEATURE_SETS,
             "algorithms": ALGORITHMS, "thresholds": THRESHOLDS, "max_budget": MAX_BUDGET,
-            "folds": [2017, 2018, 2019, 2020, 2021]}
+            "folds": [2017, 2018, 2019, 2020, 2021],
+            "labels": LABEL_OPTIONS, "tail_quantiles": TAIL_QUANTILES,
+            "top_alert_share": cfg.get("top_alert_share", 0.10)}
 
 
 def list_rows(table: str, page: int, page_size: int, where: str = "", params=()):
@@ -162,14 +172,21 @@ def hard_delete_model(model_id: int, model_name: str) -> None:
         lifecycle.hard_delete(conn, model_id, model_name, ArtifactStore())
 
 
-def list_predictions(page: int, page_size: int, champion_only: bool) -> dict:
-    where = ("WHERE p.model_id IN (SELECT model_id FROM ml_model WHERE status='champion')"
-             if champion_only else "")
+def list_predictions(page: int, page_size: int, champion_only: bool,
+                     threshold_setting: str | None = None) -> dict:
+    clauses = []
+    params: list = []
+    if champion_only:
+        clauses.append("p.model_id IN (SELECT model_id FROM ml_model WHERE status='champion')")
+    if threshold_setting:
+        clauses.append("p.threshold_setting=%s")
+        params.append(threshold_setting)
+    where = ("WHERE " + " AND ".join(clauses)) if clauses else ""
     with connect(get_schema()) as conn, conn.cursor() as cur:
         cur.execute(
             f"SELECT p.* FROM ml_prediction p {where}"
             f" ORDER BY p.period_end DESC,p.bank_id LIMIT %s OFFSET %s",
-            (page_size, (page - 1) * page_size))
+            (*params, page_size, (page - 1) * page_size))
         columns = [d[0] for d in cur.description]
         return {"items": [dict(zip(columns, row)) for row in cur.fetchall()],
                 "page": page, "page_size": page_size}
